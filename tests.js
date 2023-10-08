@@ -72,8 +72,7 @@ describe('arr_diff', () => {
     })
 });
 it('Map.prototype', () => {
-    deepStrictEqual(!!Map.prototype.values_arr, true);
-    deepStrictEqual(!!Map.prototype.keys_arr, true);
+    qw`values_arr keys_arr entries_arr`.forEach(x=>deepStrictEqual(!!Map.prototype[x], true));
     let map = new Map([
         [1, 'some value'],
         [2, 'some value 2'],
@@ -81,6 +80,7 @@ it('Map.prototype', () => {
     ]);
     deepStrictEqual(map.keys_arr(), [1, 2, 3]);
     deepStrictEqual(map.values_arr(), ['some value', 'some value 2', 'some value 3']);
+    deepStrictEqual(map.entries_arr(), [[1, 'some value'], [2, 'some value 2'], [3, 'some value 3']]);
 });
 it('Array.prototype', () => {
     qw`to_map min max sum select_recursive`.forEach(x=>deepStrictEqual(!!Array.prototype[x], true));
@@ -138,7 +138,6 @@ describe('readline', (s_ctx) => {
     _t('readline positive_float', 'positive_float', '15.4578', 15.4578);
     _t('readline positive_float fail', 'positive_float', '-15.4578', null, true);
 });
-
 describe('date.add', ()=>{
     const _t = (name, from, add, to)=>it(name, ()=>{
         from = new Date(from);
@@ -156,4 +155,32 @@ describe('date.add', ()=>{
             sec: 1,
             mls: 1
         }, '02.02.2001 1:1:1.001');
+});
+describe('date.str<->dur', ()=>{
+   const _t = (str, num)=>it(str, ()=>{
+      deepStrictEqual(date.str2dur(num), str);
+      deepStrictEqual(date.dur2str(str), num);
+   });
+   let s = 1000, m = 60*s, h = 60*m, d = 24*h, w = 7*d;
+   _t('1w 1d 1h 1m 1s 112mls', 112+s+m+h+d+w);
+   _t('1d 1h 1m 1s 112mls', 112+s+m+h+d);
+   _t('1w 1h 1m 1s 112mls', 112+s+m+h+w);
+   _t('1w 1d 1m 1s 112mls', 112+s+m+d+w);
+   _t('1w 1d 1h 1s 112mls', 112+s+h+d+w);
+   _t('1w 1d 1h 1m 112mls', 112+m+h+d+w);
+   _t('1w 1d 1h 1m 1s', s+m+h+d+w);
+});
+describe('date.format', ()=>{
+    const _t = (date_obj, str, expected)=>it(expected, ()=>{
+        date_obj = new Date(date_obj);
+        let result = date.format(date_obj, str);
+        deepStrictEqual(result, expected);
+    });
+    _t('01.01.2000', 'dd ddd dddd D DD', 'Sa Sat Saturday 1 01');
+    _t('01.01.2000', 'M MM MMM MMMM', '1 01 Jan January');
+    _t('01.01.0138', 'Y YY YYYY', '138 38 0138');
+    _t('01.01.2000 13:58', 'h hh H HH', '1 01 13 13');
+    _t('01.01.0138 10:00', 'A', 'AM');
+    _t('01.01.0138 20:00', 'A', 'PM');
+    _t('01.01.0138 20:09:04.123', 'm mm s ss SSS SS S', '9 09 4 04 123 12 1');
 });

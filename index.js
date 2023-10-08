@@ -146,6 +146,49 @@ export const join_mkfile = (def = '', ...paths) => {
 };
 
 /**
+ * Saving json to file. Checks dir existance
+ * @param fpath {string} filepath. Create dir if needed
+ * @param obj {any} JSON serializable
+ */
+export const save_json = (fpath, obj)=>{
+    let dir = path.dirname(fpath);
+    if (!fs.existsSync(dir))
+        fs.mkdirSync(dir);
+    fs.writeFileSync(fpath, JSON.stringify(obj, null, 2), 'utf-8');
+};
+
+/**
+ * Reads json
+ * @param fpath {string} filepath. Creates dir if needed
+ * @param create_default {boolean} Should we create default file?
+ * @param def_val {any} Default JSON value
+ * @param no_error {boolean} In case of error rewriting file with def value
+ * @return {{}|[]|any}
+ */
+export const read_json = (fpath, {create_default = false, def_val = {},
+    no_error = false}={})=>{
+    if (!fs.existsSync(fpath) && create_default)
+    {
+        save_json(fpath, def_val);
+        return def_val;
+    }
+    try {
+        let raw = fs.readFileSync(fpath, 'utf-8');
+        return JSON.parse(raw)
+    } catch(e)
+    {
+        if (!no_error)
+            throw e;
+
+        if (create_default)
+        {
+            save_json(fpath, def_val);
+        }
+    }
+    return def_val;
+}
+
+/**
  * Split string by spaces
  * @param s {string}
  * @returns {string[]}
@@ -162,6 +205,7 @@ Map.prototype.keys_arr = function () {
 Map.prototype.values_arr = function () {
     return Array.from(this.values());
 };
+Map.prototype.entries_arr = function () {return Array.from(this.entries());};
 
 Array.prototype.to_map = function (key_fn) {
     return new Map(this.map(x=>[key_fn(x), x]));
@@ -170,13 +214,11 @@ Array.prototype.sum = function(val_func){return _.sum(this, val_func);};
 Array.prototype.max = function(val_func){return _.max(this, val_func);};
 Array.prototype.min = function(val_func){return _.min(this, val_func);};
 Array.prototype.select_recursive = function(val_func){return _.select_recursive(this, val_func);};
-
-export const write_file = fs.writeFileSync;
-export const read_file = fs.readFileSync;
-export const homedir = os.homedir;
-export const basename = path.basename;
-export const join = path.join;
-export const dir = path.dirname;
+Array.prototype.sort_by = function(val_func){
+    val_func = val_func || (x=>x);
+    let res = this.sort((a, b)=>val_func(a)-val_func(b));
+    return res;
+};
 
 const date_cfg = new Map([
   [date_and_time.addYears, qw`years y`],
@@ -187,9 +229,29 @@ const date_cfg = new Map([
   [date_and_time.addSeconds, qw`second sec`],
   [date_and_time.addMilliseconds, qw`millisecond mls`],
 ]);
+const dur_cfg = new Map([
+   ['s', 1000],
+   ['m', 1000 * 60],
+   ['h', 1000 * 60 * 60],
+   ['d', 1000 * 60 * 60 * 24],
+   ['w', 1000 * 60 * 60 * 24 * 7],
+]);
 
 export const date = {
-    format: date_and_time.format,
+    /**
+     * Formatting date
+     * @param d_obj {Date | string | number}
+     * @param format {string} Examples:
+     * YYYY/MM/DD HH:mm:ss -> 2015/01/02 23:14:05
+     * ddd, MMM DD YYYY -> Fri, Jan 02 2015
+     * hh:mm A [GMT]Z -> 11:14 PM GMT-0800
+     * @param utc {boolean}
+     * @return {string}
+     */
+    format: function(d_obj, format, utc = false){
+        d_obj = new Date(d_obj);
+        return date_and_time.format(d_obj, format, utc);
+    },
     /**
      * @param _date {Date}
      * @param opt
@@ -200,6 +262,47 @@ export const date = {
             _date = func(_date, values);
         });
         return _date;
+    },
+    /**
+     * Prints duration in human readable form
+     * @param mls {number}
+     * @return {string}
+     */
+    str2dur: function(mls){
+        let parts = [];
+        for (let [key, zone] of dur_cfg.entries_arr().sort_by(x=>-x[1]))
+        {
+            if (mls >= zone)
+            {
+                parts.push(Math.floor(mls / zone)+key);
+                mls = mls % zone;
+            }
+        }
+        if (mls)
+            parts.push(mls+'mls');
+        return parts.join(' ');
+    },
+    /**
+     * Calculates duration from human readable form
+     * @param str {string}
+     * @return {number}
+     */
+    dur2str: function(str){
+        let res = 0, i;
+        let dur_cfg_copy = new Map([...dur_cfg.entries_arr(),
+            ['mls', 1]]);
+        for (let part of qw(str))
+        {
+            for (let [key, zone] of dur_cfg_copy.entries_arr())
+            {
+                if (part.includes(key)
+                    && Number.isInteger(i = +part.replace(key, '')))
+                {
+                    res += i*zone;
+                }
+            }
+        }
+        return res;
     }
 };
 
