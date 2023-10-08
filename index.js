@@ -125,7 +125,7 @@ export const confirm = async (q) => {
  * @param paths {string}
  * @returns {string}
  */
-export const jn_and_mkdir = (...paths) => {
+export const join_mkdir = (...paths) => {
     let dir = path.join(...paths);
     if (!fs.existsSync(dir))
         fs.mkdirSync(dir);
@@ -138,7 +138,7 @@ export const jn_and_mkdir = (...paths) => {
  * @param paths {string}
  * @returns {string}
  */
-export const jn_and_mkfile = (def = '', ...paths) => {
+export const join_mkfile = (def = '', ...paths) => {
     let filepath = path.join(...paths);
     if (!fs.existsSync(filepath))
         fs.writeFileSync(filepath, def, 'utf-8');
@@ -162,9 +162,14 @@ Map.prototype.keys_arr = function () {
 Map.prototype.values_arr = function () {
     return Array.from(this.values());
 };
+
 Array.prototype.to_map = function (key_fn) {
     return new Map(this.map(x=>[key_fn(x), x]));
 };
+Array.prototype.sum = function(val_func){return _.sum(this, val_func);};
+Array.prototype.max = function(val_func){return _.max(this, val_func);};
+Array.prototype.min = function(val_func){return _.min(this, val_func);};
+Array.prototype.select_recursive = function(val_func){return _.select_recursive(this, val_func);};
 
 export const write_file = fs.writeFileSync;
 export const read_file = fs.readFileSync;
@@ -173,29 +178,28 @@ export const basename = path.basename;
 export const join = path.join;
 export const dir = path.dirname;
 
+const date_cfg = new Map([
+  [date_and_time.addYears, qw`years y`],
+  [date_and_time.addMonths, qw`month m`],
+  [date_and_time.addDays, qw`day d`],
+  [date_and_time.addHours, qw`hour h`],
+  [date_and_time.addMinutes, qw`minute min`],
+  [date_and_time.addSeconds, qw`second sec`],
+  [date_and_time.addMilliseconds, qw`millisecond mls`],
+]);
+
 export const date = {
     format: date_and_time.format,
     /**
-     * @param date {Date}
+     * @param _date {Date}
      * @param opt
      */
-    add: function add(date, opt) {
-        let cfg = {
-            [qw`year y`]: date_and_time.addYears,
-            [qw`month m`]: date_and_time.addMonths,
-            [qw`day d`]: date_and_time.addDays,
-            [qw`hour h`]: date_and_time.addHours,
-            [qw`minute min`]: date_and_time.addMinutes,
-            [qw`second sec`]: date_and_time.addSeconds,
-            [qw`millisecond mls`]: date_and_time.addMilliseconds,
-        };
-        for (let [time_key, value] of Object.entries(opt)) {
-            for (let [times, func] of Object.entries(cfg)) {
-                if (times.includes(time_key))
-                    date = func(date, +value)
-            }
-        }
-        return date;
+    add: function add(_date, opt) {
+        date_cfg.forEach((times, func)=>{
+            let values = +times.map(x=>opt[x]).filter(Number.isInteger).sum();
+            _date = func(_date, values);
+        });
+        return _date;
     }
 };
 
@@ -203,6 +207,7 @@ export const sleep = async mls=>new Promise((resolve) => {
     setTimeout(()=>resolve(true), mls);
 })
 
+export const to_arr = obj=>Array.isArray(obj) ? obj : [obj];
 export const _ = {
     /**
      * Find index by compare func

@@ -1,6 +1,6 @@
 import {describe, it, test, mock, beforeEach, afterEach} from 'node:test';
 import {fail, deepStrictEqual} from 'assert';
-import {_, qw, question, sleep} from './index.js';
+import {_, qw, question, sleep, date} from './index.js';
 import os from "os";
 import readline from "readline";
 
@@ -83,13 +83,16 @@ it('Map.prototype', () => {
     deepStrictEqual(map.values_arr(), ['some value', 'some value 2', 'some value 3']);
 });
 it('Array.prototype', () => {
-    deepStrictEqual(!!Array.prototype.to_map, true);
+    qw`to_map min max sum select_recursive`.forEach(x=>deepStrictEqual(!!Array.prototype[x], true));
     let left = [{a: 1}, {a: 2}].to_map(x => x.a);
     let right = new Map([
         [1, {a: 1}],
         [2, {a: 2}],
     ]);
     deepStrictEqual(left, right);
+    deepStrictEqual([1,2,3,4,5].max(), 5);
+    deepStrictEqual([1,2,3,4,5].sum(), 15);
+    deepStrictEqual([1,2,3,4,5].min(), 1);
 });
 describe('readline', (s_ctx) => {
     let write_fn, _mock;
@@ -134,4 +137,23 @@ describe('readline', (s_ctx) => {
     _t('readline positive_int fail', 'positive_int', '-15', null, true);
     _t('readline positive_float', 'positive_float', '15.4578', 15.4578);
     _t('readline positive_float fail', 'positive_float', '-15.4578', null, true);
+});
+
+describe('date.add', ()=>{
+    const _t = (name, from, add, to)=>it(name, ()=>{
+        from = new Date(from);
+        to = new Date(to);
+        let other = date.add(from, add);
+        deepStrictEqual(other, to);
+    });
+    _t('works', '01.01.2000',
+        {
+            y: 1,
+            m: 1,
+            d: 1,
+            h: 1,
+            min: 1,
+            sec: 1,
+            mls: 1
+        }, '02.02.2001 1:1:1.001');
 });
