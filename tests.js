@@ -1,6 +1,6 @@
 import {describe, it, test, mock, beforeEach, afterEach} from 'node:test';
 import {fail, deepStrictEqual} from 'assert';
-import {_, qw, question, sleep, date} from './index.js';
+import {_, qw, question, sleep, date, console_format} from './index.js';
 import os from "os";
 import readline from "readline";
 
@@ -183,4 +183,18 @@ describe('date.format', ()=>{
     _t('01.01.0138 10:00', 'A', 'AM');
     _t('01.01.0138 20:00', 'A', 'PM');
     _t('01.01.0138 20:09:04.123', 'm mm s ss SSS SS S', '9 09 4 04 123 12 1');
+});
+
+it('console color', ()=>{
+    let text = `< b>Hi, there!</b> <i  >This is example test</i>
+    with custom text style. <red>You</red> <green>can</green>
+    <yellow>use</yellow> <gray>different</gray> <white>color</white>
+    <red_b>and</red_b> <green_b>even</green_b>
+    <yellow_b>different</yellow_b> <gray_b>background</gray_b>
+    <black_b>color</black_b>. <  b  ><red><green_b>Also you can 
+    combine tags</green_b></red></b>`;
+    const formatted = console_format(text);
+    console.log(formatted)
+    deepStrictEqual(formatted.includes('<'), false);
+    deepStrictEqual(formatted.includes('>'), false);
 });

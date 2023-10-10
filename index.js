@@ -18,87 +18,121 @@ import date_and_time from 'date-and-time';
  * @returns {Promise<number | string | Date>}
  * @throws {Error} wrong value provided with no force opt / custom callback validation is not provided
  */
-export const question = async (q, type, {force = true, cb} = {}) => {
+export const question = async(q, type, {force = true, cb} = {})=>{
     let {stdin: input, stdout: output} = process;
     const rl = readline.createInterface({input, output});
     if (!q.endsWith(os.EOL))
+    {
         q += os.EOL;
+    }
     let msg = q;
 
-    try {
-        do {
-            let answer = await new Promise(resolve => rl.question(msg+os.EOL, a => resolve(a)));
-            switch (type) {
-                case "float":
-                    if (Number.isFinite(+answer))
-                        return +answer;
-                    else
-                        msg = 'Answer should be a float value';
-                    break;
+    try
+    {
+        do
+        {
+            let answer = await new Promise(resolve=>rl.question(msg+os.EOL, a=>resolve(a)));
+            switch (type)
+            {
+            case "float":
+                if (Number.isFinite(+answer))
+                {
+                    return +answer;
+                } else
+                {
+                    msg = 'Answer should be a float value';
+                }
+                break;
 
-                case "int":
-                    if (Number.isInteger(+answer))
-                        return +answer;
-                    else
-                        msg = 'Answer should be a int value';
-                    break;
+            case "int":
+                if (Number.isInteger(+answer))
+                {
+                    return +answer;
+                } else
+                {
+                    msg = 'Answer should be a int value';
+                }
+                break;
 
-                case "positive_float":
-                    answer = +answer;
-                    if (Number.isFinite(answer) && answer > 0)
+            case "positive_float":
+                answer = +answer;
+                if (Number.isFinite(answer) && answer>0)
+                {
+                    return answer;
+                } else
+                {
+                    msg = 'Answer should be a positive float value';
+                }
+                break;
+
+            case "positive_int":
+                answer = +answer;
+                if (Number.isInteger(answer) && answer>0)
+                {
+                    return answer;
+                } else
+                {
+                    msg = 'Answer should be a positive int value';
+                }
+                break;
+
+            case "string":
+                answer = answer?.trim();
+                if (!!answer && typeof answer=='string')
+                {
+                    return answer;
+                } else
+                {
+                    msg = 'Answer should be any string';
+                }
+                break;
+
+            case "date":
+                let number = Date.parse(answer);
+                if (Number.isFinite(number))
+                {
+                    return new Date(number);
+                } else
+                {
+                    msg = 'Answer should be valid date';
+                }
+                break;
+
+            case "mail":
+                try
+                {
+                    if (validate(answer))
+                    {
                         return answer;
-                    else
-                        msg = 'Answer should be a positive float value';
-                    break;
-
-                case "positive_int":
-                    answer = +answer;
-                    if (Number.isInteger(answer) && answer > 0)
-                        return answer;
-                    else
-                        msg = 'Answer should be a positive int value';
-                    break;
-
-                case "string":
-                    answer = answer?.trim();
-                    if (!!answer && typeof answer == 'string')
-                        return answer;
-                    else
-                        msg = 'Answer should be any string';
-                    break;
-
-                case "date":
-                    let number = Date.parse(answer);
-                    if (Number.isFinite(number))
-                        return new Date(number);
-                    else
-                        msg = 'Answer should be valid date';
-                    break;
-
-                case "mail":
-                    try {
-                        if (validate(answer))
-                            return answer;
-                        else
-                            msg = 'Answer should be valid email';
-                    } catch (e) {
-                        console.error('Error during email validation', e);
+                    } else
+                    {
                         msg = 'Answer should be valid email';
                     }
-                    break;
+                } catch(e)
+                {
+                    console.error('Error during email validation', e);
+                    msg = 'Answer should be valid email';
+                }
+                break;
 
-                default:
-                    if (!cb)
-                        throw new Error('No validation callback provided');
-                    let {err, val} = cb(answer);
-                    if (err)
-                        msg = err.message;
-                    else
-                        return val;
-                    break;
+            default:
+                if (!cb)
+                {
+                    throw new Error('No validation callback provided');
+                }
+                let {err, val} = cb(answer);
+                if (err)
+                {
+                    msg = err.message;
+                } else
+                {
+                    return val;
+                }
+                break;
             }
         } while (force);
-    } finally {
+    } finally
+    {
         rl.close();
     }
 
@@ -110,12 +144,12 @@ export const question = async (q, type, {force = true, cb} = {}) => {
  * @param q {string} question
  * @returns {Promise<boolean>}
  */
-export const confirm = async (q) => {
+export const confirm = async(q)=>{
     let {stdin: input, stdout: output} = process;
     const rl = readline.createInterface({input, output});
-    return await question(q + ' (y/n)', 'custom', {
-        force: false, cb: s => {
-            return s.toLowerCase().trim() == 'y';
+    return await question(q+' (y/n)', 'custom', {
+        force: false, cb: s=>{
+            return s.toLowerCase().trim()=='y';
         }
     });
 };
@@ -125,10 +159,12 @@ export const confirm = async (q) => {
  * @param paths {string}
  * @returns {string}
  */
-export const join_mkdir = (...paths) => {
+export const join_mkdir = (...paths)=>{
     let dir = path.join(...paths);
     if (!fs.existsSync(dir))
+    {
         fs.mkdirSync(dir);
+    }
     return dir;
 };
 
@@ -138,10 +174,12 @@ export const join_mkdir = (...paths) => {
  * @param paths {string}
  * @returns {string}
  */
-export const join_mkfile = (def = '', ...paths) => {
+export const join_mkfile = (def = '', ...paths)=>{
     let filepath = path.join(...paths);
     if (!fs.existsSync(filepath))
+    {
         fs.writeFileSync(filepath, def, 'utf-8');
+    }
     return filepath;
 };
 
@@ -153,7 +191,9 @@ export const join_mkfile = (def = '', ...paths) => {
 export const save_json = (fpath, obj)=>{
     let dir = path.dirname(fpath);
     if (!fs.existsSync(dir))
+    {
         fs.mkdirSync(dir);
+    }
     fs.writeFileSync(fpath, JSON.stringify(obj, null, 2), 'utf-8');
 };
 
@@ -165,20 +205,25 @@ export const save_json = (fpath, obj)=>{
  * @param no_error {boolean} In case of error rewriting file with def value
  * @return {{}|[]|any}
  */
-export const read_json = (fpath, {create_default = false, def_val = {},
-    no_error = false}={})=>{
+export const read_json = (fpath, {
+    create_default = false, def_val = {},
+    no_error = false
+} = {})=>{
     if (!fs.existsSync(fpath) && create_default)
     {
         save_json(fpath, def_val);
         return def_val;
     }
-    try {
+    try
+    {
         let raw = fs.readFileSync(fpath, 'utf-8');
         return JSON.parse(raw)
     } catch(e)
     {
         if (!no_error)
+        {
             throw e;
+        }
 
         if (create_default)
         {
@@ -188,26 +233,15 @@ export const read_json = (fpath, {create_default = false, def_val = {},
     return def_val;
 }
 
-/**
- * Split string by spaces
- * @param s {string}
- * @returns {string[]}
- */
-export const qw = (...s) =>{
-    if (!s.length)
-        return [];
-    return String(s[0]).trim().split(' ')?.filter(Boolean);
-};
-
-Map.prototype.keys_arr = function () {
+Map.prototype.keys_arr = function(){
     return Array.from(this.keys())
 };
-Map.prototype.values_arr = function () {
+Map.prototype.values_arr = function(){
     return Array.from(this.values());
 };
-Map.prototype.entries_arr = function () {return Array.from(this.entries());};
+Map.prototype.entries_arr = function(){return Array.from(this.entries());};
 
-Array.prototype.to_map = function (key_fn) {
+Array.prototype.to_map = function(key_fn){
     return new Map(this.map(x=>[key_fn(x), x]));
 };
 Array.prototype.sum = function(val_func){return _.sum(this, val_func);};
@@ -220,21 +254,35 @@ Array.prototype.sort_by = function(val_func){
     return res;
 };
 
+Function.prototype.es6_args = function(){
+    let _this = this;
+    return function(s){
+        if (Array.isArray(s))
+        {
+            s = s[0];
+        }
+        return _this(s);
+    }
+}
+
+/*** @type {function(string): string[]}*/
+export const qw = (str=>str?.trim()?.split(' ')?.filter(Boolean)).es6_args();
+
 const date_cfg = new Map([
-  [date_and_time.addYears, qw`years y`],
-  [date_and_time.addMonths, qw`month m`],
-  [date_and_time.addDays, qw`day d`],
-  [date_and_time.addHours, qw`hour h`],
-  [date_and_time.addMinutes, qw`minute min`],
-  [date_and_time.addSeconds, qw`second sec`],
-  [date_and_time.addMilliseconds, qw`millisecond mls`],
+    [date_and_time.addYears, qw`years y`],
+    [date_and_time.addMonths, qw`month m`],
+    [date_and_time.addDays, qw`day d`],
+    [date_and_time.addHours, qw`hour h`],
+    [date_and_time.addMinutes, qw`minute min`],
+    [date_and_time.addSeconds, qw`second sec`],
+    [date_and_time.addMilliseconds, qw`millisecond mls`],
 ]);
 const dur_cfg = new Map([
-   ['s', 1000],
-   ['m', 1000 * 60],
-   ['h', 1000 * 60 * 60],
-   ['d', 1000 * 60 * 60 * 24],
-   ['w', 1000 * 60 * 60 * 24 * 7],
+    ['s', 1000],
+    ['m', 1000 * 60],
+    ['h', 1000 * 60 * 60],
+    ['d', 1000 * 60 * 60 * 24],
+    ['w', 1000 * 60 * 60 * 24 * 7],
 ]);
 
 export const date = {
@@ -256,7 +304,7 @@ export const date = {
      * @param _date {Date}
      * @param opt
      */
-    add: function add(_date, opt) {
+    add: function add(_date, opt){
         date_cfg.forEach((times, func)=>{
             let values = +times.map(x=>opt[x]).filter(Number.isInteger).sum();
             _date = func(_date, values);
@@ -272,14 +320,16 @@ export const date = {
         let parts = [];
         for (let [key, zone] of dur_cfg.entries_arr().sort_by(x=>-x[1]))
         {
-            if (mls >= zone)
+            if (mls>=zone)
             {
                 parts.push(Math.floor(mls / zone)+key);
                 mls = mls % zone;
             }
         }
         if (mls)
+        {
             parts.push(mls+'mls');
+        }
         return parts.join(' ');
     },
     /**
@@ -298,7 +348,7 @@ export const date = {
                 if (part.includes(key)
                     && Number.isInteger(i = +part.replace(key, '')))
                 {
-                    res += i*zone;
+                    res += i * zone;
                 }
             }
         }
@@ -306,7 +356,7 @@ export const date = {
     }
 };
 
-export const sleep = async mls=>new Promise((resolve) => {
+export const sleep = async mls=>new Promise((resolve)=>{
     setTimeout(()=>resolve(true), mls);
 })
 
@@ -319,14 +369,16 @@ export const _ = {
      * @param compare_fn {(l: any, r: any)=>number} compare func
      * @returns {number}
      */
-    find_index: function (arr, iteratee, compare_fn) {
+    find_index: function(arr, iteratee, compare_fn){
         if (!arr?.length)
+        {
             return -1;
+        }
         let min = iteratee(arr[0]), index = 0;
-        for (let i = 1; i < arr.length; i++)
+        for (let i = 1; i<arr.length; i++)
         {
             let other = iteratee(arr[i]);
-            if (compare_fn(min, other) > 0)
+            if (compare_fn(min, other)>0)
             {
                 min = other;
                 index = i;
@@ -339,8 +391,8 @@ export const _ = {
      * @param arr {Array}
      * @param min_by {(any)=>any | undefined}
      */
-    min: function (arr, min_by) {
-        return  arr[ _.find_index(arr, min_by || (x=>x), (l, r)=>l-r)];
+    min: function(arr, min_by){
+        return arr[_.find_index(arr, min_by || (x=>x), (l, r)=>l-r)];
     },
     /**
      *
@@ -348,16 +400,16 @@ export const _ = {
      * @param max_by {(any)=>any | undefined}
      * @returns {*}
      */
-    max: function (arr, max_by) {
-        return  arr[ _.find_index(arr, max_by || (x=>x), (l, r)=>r-l)];
+    max: function(arr, max_by){
+        return arr[_.find_index(arr, max_by || (x=>x), (l, r)=>r-l)];
     },
     /**
      * @param arr {Array}
      * @param sum_by {(any)=>number | undefined}
      */
-    sum: function (arr, sum_by) {
-        sum_by  = sum_by || (x=>x);
-        return arr.reduce((p, c) => p + sum_by(c), 0);
+    sum: function(arr, sum_by){
+        sum_by = sum_by || (x=>x);
+        return arr.reduce((p, c)=>p+sum_by(c), 0);
     },
     /**
      * Compare flat arrays
@@ -365,7 +417,7 @@ export const _ = {
      * @param right {Array}
      * @returns {{common: Array, left: Array, right: Array}}
      */
-    arr_diff: function (left, right) {
+    arr_diff: function(left, right){
         return {
             left: left.filter(x=>!right.includes(x)),
             common: left.filter(x=>right.includes(x)),
@@ -377,7 +429,7 @@ export const _ = {
      * @param arr {Array}
      * @param child_fn {(x: any)=>Array}
      */
-    select_recursive: function (arr, child_fn) {
+    select_recursive: function(arr, child_fn){
         let res = [];
         if (Array.isArray(arr))
         {
@@ -390,3 +442,36 @@ export const _ = {
         return res;
     },
 }
+
+const html_tags = {
+    b: '\x1b[1m',
+    u: '\x1b[4m',
+    i: '\x1b[2m',
+
+    black: '\x1b[30m',
+    red: '\x1b[31m',
+    green: '\x1b[32m',
+    blue: '\x1b[34m',
+    yellow: '\x1b[33m',
+    white: '\x1b[37m',
+    gray: '\x1b[90m',
+
+    black_b: '\x1b[40m',
+    red_b: '\x1b[41m',
+    green_b: '\x1b[42m',
+    blue_b: '\x1b[44m',
+    yellow_b: '\x1b[43m',
+    white_b: '\x1b[47m',
+    gray_b: '\x1b[100m',
+}
+
+export const console_format = txt=>{
+    let reset = '\x1b[0m';
+    for (let [key, val] of Object.entries(html_tags))
+    {
+        let open = new RegExp(`<\\s*${key}\\s*>`, 'g');
+        let close = new RegExp(`<\\s*/\\s*${key}\\s*>`, 'g');
+        txt = txt.replace(open, val).replace(close, reset);
+    }
+    return txt;
+};
