@@ -1,45 +1,51 @@
 import {describe, it, test, mock, beforeEach, afterEach} from 'node:test';
 import {fail, deepStrictEqual} from 'assert';
-import {_, qw, question, sleep, date, console_format} from './index.js';
+import {_, qw, question, sleep, date, console_format, setup_log} from './index.js';
 import os from "os";
+import fs from "fs";
+import path from "path";
 import readline from "readline";
 
-describe('_.min', () => {
-    const _t = (name, arr, expected, fn) => it(name, () => {
+describe('_.min', ()=>{
+    const _t = (name, arr, expected, fn)=>it(name, ()=>{
         deepStrictEqual(_.min(arr, fn), expected);
+        deepStrictEqual(arr.min(fn), expected);
     });
     _t('numbers', [1, 2, 3, 4], 1);
     _t('mixed', [1, 2, 3, '4'], 1);
     _t('string vals', qw`1 2 3 4`, '1');
-    _t('date', [1, 2].map(x => new Date(x)), new Date(1));
+    _t('date', [1, 2].map(x=>new Date(x)), new Date(1));
     _t('date', [new Date(), new Date(2)], new Date(2));
-    _t('min_by', [{a: 1}, {a: 2}], {a: 1}, x => x.a);
+    _t('min_by', [{a: 1}, {a: 2}], {a: 1}, x=>x.a);
 });
-describe('_.max', () => {
-    const _t = (name, arr, expected, fn) => it(name, () => {
+describe('_.max', ()=>{
+    const _t = (name, arr, expected, fn)=>it(name, ()=>{
         deepStrictEqual(_.max(arr, fn), expected);
+        deepStrictEqual(arr.max(fn), expected);
     });
 
     _t('numbers', [1, 2, 3, 4], 4);
     _t('mixed', [1, 2, 3, '4'], '4');
     _t('string vals', qw`1 2 3 4`, '4');
-    _t('date', [1, 2].map(x => new Date(x)), new Date(2));
+    _t('date', [1, 2].map(x=>new Date(x)), new Date(2));
     _t('date', [new Date('01.01.1980'), new Date(2)], new Date('01.01.1980'));
-    _t('min_by', [{a: 1}, {a: 2}], {a: 2}, x => x.a);
+    _t('min_by', [{a: 1}, {a: 2}], {a: 2}, x=>x.a);
 });
-describe('_.sum', () => {
-    const _t = (name, arr, expected, fn) => it(name, () => {
+describe('_.sum', ()=>{
+    const _t = (name, arr, expected, fn)=>it(name, ()=>{
         deepStrictEqual(_.sum(arr, fn), expected);
+        deepStrictEqual(arr.sum(fn), expected);
     });
     _t('empty', [], 0);
     _t('0', [0], 0);
     _t('1', [1], 1);
     _t('many', [1, 2, 3], 6);
-    _t('by func', [{a: 1}, {a: 2}], 3, x => x.a);
+    _t('by func', [{a: 1}, {a: 2}], 3, x=>x.a);
 });
-describe('_.select_recursive', () => {
-    const _t = (name, arr, child_fn, length) => it(name, () => {
+describe('_.select_recursive', ()=>{
+    const _t = (name, arr, child_fn, length)=>it(name, ()=>{
         deepStrictEqual(_.select_recursive(arr, child_fn).length, length);
+        deepStrictEqual(arr.select_recursive(child_fn).length, length);
     });
     _t('works', [
         {
@@ -56,10 +62,10 @@ describe('_.select_recursive', () => {
             ],
         },
         {v: 2}
-    ], x => x?.children, 4);
+    ], x=>x?.children, 4);
 });
-describe('arr_diff', () => {
-    const _t = (name, left, right, {l, r, c}) => it(name, () => {
+describe('arr_diff', ()=>{
+    const _t = (name, left, right, {l, r, c})=>it(name, ()=>{
         let diff = _.arr_diff(left, right);
         deepStrictEqual(diff.left, l);
         deepStrictEqual(diff.right, r);
@@ -71,7 +77,7 @@ describe('arr_diff', () => {
         c: [2, 3],
     })
 });
-it('Map.prototype', () => {
+it('Map.prototype', ()=>{
     qw`values_arr keys_arr entries_arr`.forEach(x=>deepStrictEqual(!!Map.prototype[x], true));
     let map = new Map([
         [1, 'some value'],
@@ -82,45 +88,52 @@ it('Map.prototype', () => {
     deepStrictEqual(map.values_arr(), ['some value', 'some value 2', 'some value 3']);
     deepStrictEqual(map.entries_arr(), [[1, 'some value'], [2, 'some value 2'], [3, 'some value 3']]);
 });
-it('Array.prototype', () => {
+it('Array.prototype', ()=>{
     qw`to_map min max sum select_recursive`.forEach(x=>deepStrictEqual(!!Array.prototype[x], true));
-    let left = [{a: 1}, {a: 2}].to_map(x => x.a);
+    let left = [{a: 1}, {a: 2}].to_map(x=>x.a);
     let right = new Map([
         [1, {a: 1}],
         [2, {a: 2}],
     ]);
     deepStrictEqual(left, right);
-    deepStrictEqual([1,2,3,4,5].max(), 5);
-    deepStrictEqual([1,2,3,4,5].sum(), 15);
-    deepStrictEqual([1,2,3,4,5].min(), 1);
+    deepStrictEqual([1, 2, 3, 4, 5].max(), 5);
+    deepStrictEqual([1, 2, 3, 4, 5].sum(), 15);
+    deepStrictEqual([1, 2, 3, 4, 5].min(), 1);
 });
-describe('readline', (s_ctx) => {
+describe('readline', (s_ctx)=>{
     let write_fn, _mock;
-    beforeEach(() => {
+    beforeEach(()=>{
         _mock = mock.method(readline, 'createInterface').mock;
-        write_fn = (txt) => {
-            _mock.calls[0].result.write(txt + os.EOL, 'utf-8');
+        write_fn = (txt)=>{
+            _mock.calls[0].result.write(txt+os.EOL, 'utf-8');
         };
     });
-    afterEach(() => {
+    afterEach(()=>{
         _mock.restore();
         write_fn = null;
     });
     /*** @param type {QType}*/
-    const _t = (name, type, prompt, answer, is_err = false) => it(name, async () => {
+    const _t = (name, type, prompt, answer, is_err = false)=>it(name, async()=>{
         let promise = question('Question', type, {force: !is_err});
         await sleep(1);
         write_fn(prompt);
-        try {
+        try
+        {
             let res = await promise;
             if (is_err)
+            {
                 fail('Should fail here');
+            }
             deepStrictEqual(res, answer);
-        } catch (e) {
+        } catch(e)
+        {
             if (!is_err)
+            {
                 fail(e.message);
-            else
+            } else
+            {
                 deepStrictEqual(!!e, true);
+            }
         }
     });
     _t('readline date', 'date', '01.01.1970', new Date('01.01.1970'));
@@ -157,18 +170,18 @@ describe('date.add', ()=>{
         }, '02.02.2001 1:1:1.001');
 });
 describe('date.str<->dur', ()=>{
-   const _t = (str, num)=>it(str, ()=>{
-      deepStrictEqual(date.str2dur(num), str);
-      deepStrictEqual(date.dur2str(str), num);
-   });
-   let s = 1000, m = 60*s, h = 60*m, d = 24*h, w = 7*d;
-   _t('1w 1d 1h 1m 1s 112mls', 112+s+m+h+d+w);
-   _t('1d 1h 1m 1s 112mls', 112+s+m+h+d);
-   _t('1w 1h 1m 1s 112mls', 112+s+m+h+w);
-   _t('1w 1d 1m 1s 112mls', 112+s+m+d+w);
-   _t('1w 1d 1h 1s 112mls', 112+s+h+d+w);
-   _t('1w 1d 1h 1m 112mls', 112+m+h+d+w);
-   _t('1w 1d 1h 1m 1s', s+m+h+d+w);
+    const _t = (str, num)=>it(str, ()=>{
+        deepStrictEqual(date.str2dur(num), str);
+        deepStrictEqual(date.dur2str(str), num);
+    });
+    let s = 1000, m = 60 * s, h = 60 * m, d = 24 * h, w = 7 * d;
+    _t('1w 1d 1h 1m 1s 112mls', 112+s+m+h+d+w);
+    _t('1d 1h 1m 1s 112mls', 112+s+m+h+d);
+    _t('1w 1h 1m 1s 112mls', 112+s+m+h+w);
+    _t('1w 1d 1m 1s 112mls', 112+s+m+d+w);
+    _t('1w 1d 1h 1s 112mls', 112+s+h+d+w);
+    _t('1w 1d 1h 1m 112mls', 112+m+h+d+w);
+    _t('1w 1d 1h 1m 1s', s+m+h+d+w);
 });
 describe('date.format', ()=>{
     const _t = (date_obj, str, expected)=>it(expected, ()=>{
@@ -184,7 +197,6 @@ describe('date.format', ()=>{
     _t('01.01.0138 20:00', 'A', 'PM');
     _t('01.01.0138 20:09:04.123', 'm mm s ss SSS SS S', '9 09 4 04 123 12 1');
 });
-
 it('console color', ()=>{
     let text = `< b>Hi, there!</b> <i  >This is example test</i>
     with custom text style. <red>You</red> <green>can</green>
@@ -197,4 +209,28 @@ it('console color', ()=>{
     console.log(formatted)
     deepStrictEqual(formatted.includes('<'), false);
     deepStrictEqual(formatted.includes('>'), false);
+});
+describe('setup_log', ()=>{
+    let log_dir;
+    beforeEach(()=>{
+        log_dir = fs.mkdtempSync('log_test');
+    });
+    afterEach(()=>{
+        if (fs.existsSync(log_dir))
+            fs.rmSync(log_dir, {force: true, recursive: true});
+    });
+    it('works', async ()=>{
+        let logfile_format = 'DD.MM.YYYY';
+        setup_log({
+            log_dir,
+            logfile_format,
+            mask: 'debug+',
+        });
+        qw`debug trace info log warn error`.forEach(fn=>{
+            console[fn]('Hi');
+        });
+        await sleep(10);
+        let filepath = path.join(log_dir, date.format(new Date(), logfile_format)+'.log');
+        deepStrictEqual(fs.existsSync(filepath), true);
+    });
 });

@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import readline from "readline";
+import {format} from 'node:util'
 import {validate} from "email-validator";
 import date_and_time from 'date-and-time';
 
@@ -170,15 +171,19 @@ export const join_mkdir = (...paths)=>{
 
 /**
  * Resolve filepath from parts and created one if needed with default text
- * @param def {string} default file content
  * @param paths {string}
  * @returns {string}
  */
-export const join_mkfile = (def = '', ...paths)=>{
+export const join_mkfile = (...paths)=>{
     let filepath = path.join(...paths);
+    let dir = path.dirname(filepath);
+    if (!fs.existsSync(dir))
+    {
+        fs.mkdirSync(dir);
+    }
     if (!fs.existsSync(filepath))
     {
-        fs.writeFileSync(filepath, def, 'utf-8');
+        fs.writeFileSync(filepath, '', 'utf-8');
     }
     return filepath;
 };
@@ -463,8 +468,7 @@ const html_tags = {
     yellow_b: '\x1b[43m',
     white_b: '\x1b[47m',
     gray_b: '\x1b[100m',
-}
-
+};
 export const console_format = txt=>{
     let reset = '\x1b[0m';
     for (let [key, val] of Object.entries(html_tags))
@@ -474,4 +478,95 @@ export const console_format = txt=>{
         txt = txt.replace(open, val).replace(close, reset);
     }
     return txt;
+};
+
+const log_levels = {
+    debug: console.debug.bind(console),
+    trace: console.trace.bind(console),
+    info: console.info.bind(console),
+    log: console.log.bind(console),
+    warn: console.warn.bind(console),
+    error: console.error.bind(console),
+
+    get_levels: function(){
+        return qw`debug trace info log warn error`;
+    },
+    get_fn_by_lvl: function(level){
+        level = level.trim().toLowerCase();
+        if (this.get_levels().includes(level))
+        {
+            return this[level];
+        }
+    },
+    accept_level_mask: function(mask, level){
+        level = level.trim().toLowerCase();
+        let all = this.get_levels();
+        if (!all.includes(level))
+            return false;
+
+        let upper = mask.includes('+'), lower = mask.includes('+');
+        mask = mask.replaceAll('+', '').replaceAll('-', '')
+            .trim().toLowerCase();
+        if (mask == level)
+            return true;
+        if (upper && all.indexOf(level) >= all.indexOf(mask))
+            return true;
+        if (lower && all.indexOf(level) <= all.indexOf(mask))
+            return true;
+        return false;
+    },
+};
+/**
+ * @typedef {object} LogCfg
+ * @property {string} log_dir  path to logs directory
+ * @property {string?} date_format  date format for logs, by default
+ * DD.MM.YYYY HH:mm:ss.SSS
+ * @property {string} mask Log level mask. Use debug+ for debug level and
+ * higher. Use warn- for warn and lower, etc
+ * @property {string} logfile_format  date format for log file. Must be valid
+ * date format. DD.MM.YYYY by default
+ */
+
+/*** @param cfg {LogCfg}*/
+export const setup_log = (cfg)=>{
+    if (!cfg.log_dir)
+        throw new Error('You should set log directory!');
+    if (cfg.date_format && typeof cfg.date_format!='string')
+        throw new Error('date_format should be a string!');
+
+    const to_write = [];
+    let scheduled = false;
+
+    function get_log_file(){
+        return join_mkfile(cfg.log_dir, date.format(new Date(),
+            cfg.logfile_format || 'DD.MM.YYYY', true)+'.log');
+    }
+
+    function flush(){
+        while (to_write.length)
+        {
+            let write = to_write.splice(0, to_write.length).join(os.EOL);
+            let fpath = get_log_file();
+            fs.appendFileSync(fpath, write, 'utf-8');
+        }
+        scheduled = false;
+    }
+
+    const write_fn = lvl=>(...txt)=>{
+        let final_text = lvl.toString().toUpperCase().padEnd(7, ' ')
+        +date.format(new Date(), cfg.date_format || 'DD.MM.YYYY HH:mm:ss.SSS')
+        +' '+format(...txt);
+
+        if (!cfg.mask || log_levels.accept_level_mask(cfg.mask, lvl))
+        {
+            to_write.push(final_text);
+            if (!scheduled)
+            {
+                process.nextTick(flush);
+                scheduled = true;
+            }
+        }
+        log_levels.get_fn_by_lvl(lvl)?.(final_text);
+    }
+    log_levels.get_levels().forEach(fn=>console[fn] = write_fn(fn));
 };
