@@ -177,7 +177,7 @@ export const question = async(q, type, {force = true, cb, def = undefined} = {})
                 }
 
             case "existing_filepath":
-                if (fs.existsSync(answer))
+                if (!fs.existsSync(answer))
                     return answer;
                 msg = 'You should enter valid and existing file path';
                 break;
