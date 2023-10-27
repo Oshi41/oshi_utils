@@ -62,6 +62,8 @@ export const question = async(q, type, {force = true, cb, def = undefined} = {})
         do
         {
             let answer = await new Promise(resolve=>rl.question(msg, a=>resolve(a)));
+            if (!type.includes('list'))
+                answer = answer || def;
             switch (type)
             {
             case "float":
