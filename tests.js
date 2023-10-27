@@ -8,9 +8,6 @@ import readline from "readline";
 import Settings from './settings.js';
 import {Writable} from "stream";
 
-let a = await question('Enter some valuable information', 'plain_list', {def: '123123'});
-console.log(a);
-
 describe('_.min', ()=>{
     const _t = (name, arr, expected, fn)=>it(name, ()=>{
         deepStrictEqual(_.min(arr, fn), expected);
@@ -156,10 +153,7 @@ describe('readline', (s_ctx)=>{
     _t('readline positive_float', 'positive_float', '15.4578', 15.4578);
     _t('readline positive_float fail', 'positive_float', '-15.4578', null, true);
     _t('readline password', 'password', '123456', '123456');
-    it('pass', async ()=>{
-        let a = await question('hehe', 'password');
-        console.log(a);
-    })
+    _t('readline existing_filepath', 'existing_filepath', os.homedir(), os.homedir());
 });
 describe('date.add', ()=>{
     const _t = (name, from, add, to)=>it(name, ()=>{

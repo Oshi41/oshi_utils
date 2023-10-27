@@ -9,7 +9,8 @@ import settings from "./settings.js";
 import {Writable, Readable} from 'stream';
 
 /**
- * @typedef {'int' | 'float' | 'positive_int' | 'positive_float' | 'string' | 'date' | 'mail' | 'password' | 'plain_list'} QType
+ * @typedef {'int' | 'float' | 'positive_int' | 'positive_float' | 'string' | 'date' | 'mail' | 'password' | 'plain_list'
+ * | 'existing_filepath'} QType
  */
 
 /**
@@ -160,6 +161,12 @@ export const question = async(q, type, {force = true, cb, def = undefined} = {})
                     extra.push(answer);
                     break;
                 }
+
+            case "existing_filepath":
+                if (fs.existsSync(answer))
+                    return answer;
+                msg = 'You should enter valid and existing file path';
+                break;
 
             default:
                 if (!cb)
