@@ -1,6 +1,6 @@
 {
   "name": "oshi_utils",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "type": "module",
   "description": "Some useful util functions for NodeJS I using.",
   "main": "index.js",
