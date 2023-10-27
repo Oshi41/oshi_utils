@@ -18,10 +18,11 @@ import {Writable, Readable} from 'stream';
  * @param type {QType} Type of return value
  * @param force - ask user to rewrite answer to fit type needs
  * @param cb {(s: string)=>{err: Error, val: any}} - custom validation callback
+ * @param def {any} Default or previous value
  * @returns {Promise<number | string | Date | string[]>}
  * @throws {Error} wrong value provided with no force opt / custom callback validation is not provided
  */
-export const question = async(q, type, {force = true, cb} = {})=>{
+export const question = async(q, type, {force = true, cb, def = undefined} = {})=>{
     let {stdin: input, stdout: output} = process;
     let was_typed = false;
     input.on('data', args=>{
@@ -45,10 +46,10 @@ export const question = async(q, type, {force = true, cb} = {})=>{
         output: mutableStdout,
         terminal: true,
     });
+    if (def)
+        q += `\n[Default: ${def}]\n`;
     if (!q.endsWith('\n'))
-    {
         q += '\n';
-    }
     let msg = q, extra;
 
     try

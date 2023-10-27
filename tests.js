@@ -8,9 +8,8 @@ import readline from "readline";
 import Settings from './settings.js';
 import {Writable} from "stream";
 
-let a = await question('hehe', 'plain_list');
+let a = await question('Enter some valuable information', 'plain_list', {def: '123123'});
 console.log(a);
-process.exit();
 
 describe('_.min', ()=>{
     const _t = (name, arr, expected, fn)=>it(name, ()=>{

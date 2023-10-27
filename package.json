@@ -1,6 +1,6 @@
 {
   "name": "oshi_utils",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "module",
   "description": "Some useful util functions for NodeJS I using.",
   "main": "index.js",
@@ -18,6 +18,6 @@
   },
   "scripts": {
     "test": "node --experimental-modules --trace-warnings --test ./tests.js",
-    "publish": ""
+    "publish": "npm publish --access public"
   }
 }
