@@ -55,15 +55,13 @@ export const question = async(q, type, {force = true, cb, def = undefined} = {})
     }
     if (!q.endsWith('\n'))
         q += '\n';
-    let msg = q, extra;
+    let msg = q, extra = type.includes('list') ? def : undefined;
 
     try
     {
         do
         {
             let answer = await new Promise(resolve=>rl.question(msg, a=>resolve(a)));
-            if (!type.includes('list'))
-                answer = answer || def;
             switch (type)
             {
             case "float":
