@@ -1,6 +1,6 @@
 {
   "name": "oshi_utils",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "module",
   "description": "Some useful util functions for NodeJS I using.",
   "main": "index.js",
@@ -17,6 +17,7 @@
     "@types/crypto-js": "^4.1.3"
   },
   "scripts": {
-    "test": "node --experimental-modules --trace-warnings --test ./tests.js"
+    "test": "node --experimental-modules --trace-warnings --test ./tests.js",
+    "publish": "npm publish --access public"
   }
 }

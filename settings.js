@@ -32,20 +32,23 @@ export default class Settings {
         return res.toString();
     }
 
-    read(){
-        if (!fs.existsSync(this.filepath))
-            return;
-
-        let json, raw = fs.readFileSync(this.filepath, 'utf-8');
-        try {
-            if (this.pass)
-                raw = this.#decrypt(raw);
-            json = JSON.parse(raw);
-        } catch (e) {
-            console.warn('Error during settings read:', e);
+    async read(default_fn) {
+        if (fs.existsSync(this.filepath)) {
+            let raw = fs.readFileSync(this.filepath, 'utf-8');
+            try {
+                if (this.pass)
+                    raw = this.#decrypt(raw);
+                return JSON.parse(raw);
+            } catch (e) {
+                console.warn('Error during settings read:', e);
+            }
         }
 
-        return json;
+        if (default_fn) {
+            let cfg = await default_fn();
+            this.save(cfg);
+            return cfg;
+        }
     }
     save(obj){
         join_mkfile(this.filepath);
