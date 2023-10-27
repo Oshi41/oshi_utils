@@ -7,6 +7,7 @@ import {validate} from "email-validator";
 import date_and_time from 'date-and-time';
 import settings from "./settings.js";
 import {Writable, Readable} from 'stream';
+import file_dialog from 'node-file-dialog';
 
 /**
  * @typedef {'int' | 'float' | 'positive_int' | 'positive_float' | 'string' | 'date' | 'mail' | 'password' | 'plain_list'
@@ -61,7 +62,14 @@ export const question = async(q, type, {force = true, cb, def = undefined} = {})
     {
         do
         {
-            let answer = await new Promise(resolve=>rl.question(msg, a=>resolve(a)));
+            let answer;
+            if (type == 'existing_filepath')
+            {
+                console.log(msg);
+                answer = await file_dialog({type: 'open-file'});
+            } else {
+                answer = await new Promise(resolve=>rl.question(msg, a=>resolve(a)));
+            }
             if (!type.includes('list'))
                 answer = answer || def;
             switch (type)

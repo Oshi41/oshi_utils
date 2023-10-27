@@ -11,7 +11,8 @@
     "date-and-time": "^3.0.3",
     "email-validator": "^2.0.4",
     "crypto-js": "^4.2.0",
-    "node-machine-id": "^1.1.12"
+    "node-machine-id": "^1.1.12",
+    "node-file-dialog": "^1.0.3"
   },
   "devDependencies": {
     "@types/crypto-js": "^4.1.3"
