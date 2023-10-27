@@ -6,9 +6,10 @@ import {format} from 'node:util'
 import {validate} from "email-validator";
 import date_and_time from 'date-and-time';
 import settings from "./settings.js";
+import {Writable, Readable} from 'stream';
 
 /**
- * @typedef {'int' | 'float' | 'positive_int' | 'positive_float' | 'string' | 'date' | 'mail'} QType
+ * @typedef {'int' | 'float' | 'positive_int' | 'positive_float' | 'string' | 'date' | 'mail' | 'password' | 'plain_list'} QType
  */
 
 /**
@@ -17,23 +18,44 @@ import settings from "./settings.js";
  * @param type {QType} Type of return value
  * @param force - ask user to rewrite answer to fit type needs
  * @param cb {(s: string)=>{err: Error, val: any}} - custom validation callback
- * @returns {Promise<number | string | Date>}
+ * @returns {Promise<number | string | Date | string[]>}
  * @throws {Error} wrong value provided with no force opt / custom callback validation is not provided
  */
 export const question = async(q, type, {force = true, cb} = {})=>{
     let {stdin: input, stdout: output} = process;
-    const rl = readline.createInterface({input, output});
-    if (!q.endsWith(os.EOL))
+    let was_typed = false;
+    input.on('data', args=>{
+        was_typed = true;
+    });
+    let mutableStdout = new Writable({
+        write: function(...args) {
+            if (type != 'password' || !was_typed)
+                return output.write(...args);
+
+            was_typed = false;
+            let [chunk, encoding, callback] = args;
+            let str = chunk.toString('utf-8');
+            str = '*'.repeat(str.length);
+            let buff = Buffer.from(str);
+            output.write(buff, encoding, callback);
+        }
+    });
+    const rl = readline.createInterface({
+        input,
+        output: mutableStdout,
+        terminal: true,
+    });
+    if (!q.endsWith('\n'))
     {
-        q += os.EOL;
+        q += '\n';
     }
-    let msg = q;
+    let msg = q, extra;
 
     try
     {
         do
         {
-            let answer = await new Promise(resolve=>rl.question(msg+os.EOL, a=>resolve(a)));
+            let answer = await new Promise(resolve=>rl.question(msg, a=>resolve(a)));
             switch (type)
             {
             case "float":
@@ -89,6 +111,14 @@ export const question = async(q, type, {force = true, cb} = {})=>{
                 }
                 break;
 
+            case 'password':
+                if (!answer)
+                {
+                    msg = 'Password should not be empty';
+                    break;
+                }
+                return answer;
+
             case "date":
                 let number = Date.parse(answer);
                 if (Number.isFinite(number))
@@ -116,6 +146,19 @@ export const question = async(q, type, {force = true, cb} = {})=>{
                     msg = 'Answer should be valid email';
                 }
                 break;
+
+            case 'plain_list':
+                if (!Array.isArray(extra))
+                    extra = [];
+                if (!answer){
+                    if (extra.length)
+                        return extra;
+                    msg = 'You need to write at least one string';
+                    break;
+                } else {
+                    extra.push(answer);
+                    break;
+                }
 
             default:
                 if (!cb)

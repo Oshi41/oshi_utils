@@ -5,7 +5,12 @@ import os from "os";
 import fs from "fs";
 import path from "path";
 import readline from "readline";
-import {Settings} from './settings.js';
+import Settings from './settings.js';
+import {Writable} from "stream";
+
+let a = await question('hehe', 'plain_list');
+console.log(a);
+process.exit();
 
 describe('_.min', ()=>{
     const _t = (name, arr, expected, fn)=>it(name, ()=>{
@@ -151,6 +156,11 @@ describe('readline', (s_ctx)=>{
     _t('readline positive_int fail', 'positive_int', '-15', null, true);
     _t('readline positive_float', 'positive_float', '15.4578', 15.4578);
     _t('readline positive_float fail', 'positive_float', '-15.4578', null, true);
+    _t('readline password', 'password', '123456', '123456');
+    it('pass', async ()=>{
+        let a = await question('hehe', 'password');
+        console.log(a);
+    })
 });
 describe('date.add', ()=>{
     const _t = (name, from, add, to)=>it(name, ()=>{
@@ -245,7 +255,7 @@ describe('Settings', ()=>{
        if (fs.existsSync(filepath))
            fs.rmSync(filepath);
     });
-    let _it = (name, cfg, pass)=>it(name, ()=>{
+    let _it = (name, cfg, pass)=>it(name, async ()=>{
         let settings = new Settings(filepath, pass);
         settings.save(cfg);
         if (pass)
@@ -259,7 +269,7 @@ describe('Settings', ()=>{
                 ok(e);
             }
         }
-        let copy = settings.read();
+        let copy = await settings.read();
         deepStrictEqual(cfg, copy);
     });
     _it('works', {f: '111', f2: '222'});
