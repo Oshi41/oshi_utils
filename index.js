@@ -66,7 +66,7 @@ export const question = async(q, type, {force = true, cb, def = undefined} = {})
             if (type == 'existing_filepath')
             {
                 console.log(msg);
-                answer = await file_dialog({type: 'open-file'});
+                answer = (await file_dialog({type: 'open-file'}))?.[0];
             } else {
                 answer = await new Promise(resolve=>rl.question(msg, a=>resolve(a)));
             }
@@ -177,7 +177,7 @@ export const question = async(q, type, {force = true, cb, def = undefined} = {})
                 }
 
             case "existing_filepath":
-                if (!fs.existsSync(answer))
+                if (fs.existsSync(answer))
                     return answer;
                 msg = 'You should enter valid and existing file path';
                 break;
@@ -218,7 +218,7 @@ export const confirm = async(q)=>{
     const rl = readline.createInterface({input, output});
     return await question(q+' (y/n)', 'custom', {
         force: false, cb: s=>{
-            return s.toLowerCase().trim()=='y';
+            return {val: s.toLowerCase().trim()=='y'};
         }
     });
 };
