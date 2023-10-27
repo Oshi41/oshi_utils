@@ -5,6 +5,7 @@ import readline from "readline";
 import {format} from 'node:util'
 import {validate} from "email-validator";
 import date_and_time from 'date-and-time';
+import settings from "./settings.js";
 
 /**
  * @typedef {'int' | 'float' | 'positive_int' | 'positive_float' | 'string' | 'date' | 'mail'} QType
@@ -139,6 +140,8 @@ export const question = async(q, type, {force = true, cb} = {})=>{
 
     throw new Error('Wrong value provided');
 };
+
+export const Settings = settings;
 
 /**
  * Ask confirmation

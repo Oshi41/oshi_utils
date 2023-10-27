@@ -1,10 +1,11 @@
 import {describe, it, test, mock, beforeEach, afterEach} from 'node:test';
-import {fail, deepStrictEqual} from 'assert';
-import {_, qw, question, sleep, date, console_format, setup_log} from './index.js';
+import {fail, deepStrictEqual, ok} from 'assert';
+import {_, qw, question, sleep, date, console_format, setup_log, join_mkfile} from './index.js';
 import os from "os";
 import fs from "fs";
 import path from "path";
 import readline from "readline";
+import {Settings} from './settings.js';
 
 describe('_.min', ()=>{
     const _t = (name, arr, expected, fn)=>it(name, ()=>{
@@ -233,4 +234,41 @@ describe('setup_log', ()=>{
         let filepath = path.join(log_dir, date.format(new Date(), logfile_format)+'.log');
         deepStrictEqual(fs.existsSync(filepath), true);
     });
+});
+
+describe('Settings', ()=>{
+    let filepath;
+    beforeEach(()=>{
+        filepath = join_mkfile(os.tmpdir(), 'settings.crypt');
+    });
+    afterEach(()=>{
+       if (fs.existsSync(filepath))
+           fs.rmSync(filepath);
+    });
+    let _it = (name, cfg, pass)=>it(name, ()=>{
+        let settings = new Settings(filepath, pass);
+        settings.save(cfg);
+        if (pass)
+        {
+            ok(!!settings.iv);
+            let txt = fs.readFileSync(filepath, 'utf-8');
+            try {
+                JSON.parse(txt);
+                fail('text should be encrypted');
+            } catch (e) {
+                ok(e);
+            }
+        }
+        let copy = settings.read();
+        deepStrictEqual(cfg, copy);
+    });
+    _it('works', {f: '111', f2: '222'});
+    _it('works with pass', {f1: '111', f2: '222'}, 'password');
+    _it('complex cfg', {
+        str: 'str',
+        int: 1,
+        float: 1.2,
+        bool: true,
+        array: ['str', 1, 1.2, {str: 'str'}, true],
+    }, 'other password 1234567890!@#$%^&*()');
 });
