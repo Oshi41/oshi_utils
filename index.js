@@ -24,14 +24,14 @@ import file_dialog from 'node-file-dialog';
  * @returns {Promise<number | string | Date | string[]>}
  * @throws {Error} wrong value provided with no force opt / custom callback validation is not provided
  */
-export const question = async(q, type, {force = true, cb, def = undefined} = {})=>{
+export const question = async (q, type, {force = true, cb, def = undefined} = {}) => {
     let {stdin: input, stdout: output} = process;
     let was_typed = false;
-    input.on('data', args=>{
+    input.on('data', args => {
         was_typed = true;
     });
     let mutableStdout = new Writable({
-        write: function(...args) {
+        write: function (...args) {
             if (type != 'password' || !was_typed)
                 return output.write(...args);
 
@@ -48,8 +48,7 @@ export const question = async(q, type, {force = true, cb, def = undefined} = {})
         output: mutableStdout,
         terminal: true,
     });
-    if (def)
-    {
+    if (def) {
         let def_value = type == 'password' ?
             '*'.repeat(def.length) : def;
         q += `\n[Default: ${def_value}]\n`;
@@ -58,148 +57,123 @@ export const question = async(q, type, {force = true, cb, def = undefined} = {})
         q += '\n';
     let msg = q, extra = type.includes('list') ? def : undefined;
 
-    try
-    {
-        do
-        {
+    try {
+        do {
             let answer;
-            if (type == 'existing_filepath')
-            {
+            if (type == 'existing_filepath') {
                 console.log(msg);
                 answer = (await file_dialog({type: 'open-file'}))?.[0];
             } else {
-                answer = await new Promise(resolve=>rl.question(msg, a=>resolve(a)));
+                answer = await new Promise(resolve => rl.question(msg, a => resolve(a)));
             }
             if (!type.includes('list'))
                 answer = answer || def;
-            switch (type)
-            {
-            case "float":
-                if (Number.isFinite(+answer))
-                {
-                    return +answer;
-                } else
-                {
-                    msg = 'Answer should be a float value';
-                }
-                break;
-
-            case "int":
-                if (Number.isInteger(+answer))
-                {
-                    return +answer;
-                } else
-                {
-                    msg = 'Answer should be a int value';
-                }
-                break;
-
-            case "positive_float":
-                answer = +answer;
-                if (Number.isFinite(answer) && answer>0)
-                {
-                    return answer;
-                } else
-                {
-                    msg = 'Answer should be a positive float value';
-                }
-                break;
-
-            case "positive_int":
-                answer = +answer;
-                if (Number.isInteger(answer) && answer>0)
-                {
-                    return answer;
-                } else
-                {
-                    msg = 'Answer should be a positive int value';
-                }
-                break;
-
-            case "string":
-                answer = answer?.trim();
-                if (!!answer && typeof answer=='string')
-                {
-                    return answer;
-                } else
-                {
-                    msg = 'Answer should be any string';
-                }
-                break;
-
-            case 'password':
-                if (!answer)
-                {
-                    msg = 'Password should not be empty';
+            switch (type) {
+                case "float":
+                    if (Number.isFinite(+answer)) {
+                        return +answer;
+                    } else {
+                        msg = 'Answer should be a float value';
+                    }
                     break;
-                }
-                return answer;
 
-            case "date":
-                let number = Date.parse(answer);
-                if (Number.isFinite(number))
-                {
-                    return new Date(number);
-                } else
-                {
-                    msg = 'Answer should be valid date';
-                }
-                break;
+                case "int":
+                    if (Number.isInteger(+answer)) {
+                        return +answer;
+                    } else {
+                        msg = 'Answer should be a int value';
+                    }
+                    break;
 
-            case "mail":
-                try
-                {
-                    if (validate(answer))
-                    {
+                case "positive_float":
+                    answer = +answer;
+                    if (Number.isFinite(answer) && answer > 0) {
                         return answer;
-                    } else
-                    {
+                    } else {
+                        msg = 'Answer should be a positive float value';
+                    }
+                    break;
+
+                case "positive_int":
+                    answer = +answer;
+                    if (Number.isInteger(answer) && answer > 0) {
+                        return answer;
+                    } else {
+                        msg = 'Answer should be a positive int value';
+                    }
+                    break;
+
+                case "string":
+                    answer = answer?.trim();
+                    if (!!answer && typeof answer == 'string') {
+                        return answer;
+                    } else {
+                        msg = 'Answer should be any string';
+                    }
+                    break;
+
+                case 'password':
+                    if (!answer) {
+                        msg = 'Password should not be empty';
+                        break;
+                    }
+                    return answer;
+
+                case "date":
+                    let number = Date.parse(answer);
+                    if (Number.isFinite(number)) {
+                        return new Date(number);
+                    } else {
+                        msg = 'Answer should be valid date';
+                    }
+                    break;
+
+                case "mail":
+                    try {
+                        if (validate(answer)) {
+                            return answer;
+                        } else {
+                            msg = 'Answer should be valid email';
+                        }
+                    } catch (e) {
+                        console.error('Error during email validation', e);
                         msg = 'Answer should be valid email';
                     }
-                } catch(e)
-                {
-                    console.error('Error during email validation', e);
-                    msg = 'Answer should be valid email';
-                }
-                break;
-
-            case 'plain_list':
-                if (!Array.isArray(extra))
-                    extra = [];
-                if (!answer){
-                    if (extra.length)
-                        return extra;
-                    msg = 'You need to write at least one string';
                     break;
-                } else {
-                    extra.push(answer);
+
+                case 'plain_list':
+                    if (!Array.isArray(extra))
+                        extra = [];
+                    if (!answer) {
+                        if (extra.length)
+                            return extra;
+                        msg = 'You need to write at least one string';
+                        break;
+                    } else {
+                        extra.push(answer);
+                        break;
+                    }
+
+                case "existing_filepath":
+                    if (fs.existsSync(answer))
+                        return answer;
+                    msg = 'You should enter valid and existing file path';
                     break;
-                }
 
-            case "existing_filepath":
-                if (fs.existsSync(answer))
-                    return answer;
-                msg = 'You should enter valid and existing file path';
-                break;
-
-            default:
-                if (!cb)
-                {
-                    throw new Error('No validation callback provided');
-                }
-                let {err, val} = cb(answer);
-                if (err)
-                {
-                    msg = err.message;
-                } else
-                {
-                    return val;
-                }
-                break;
+                default:
+                    if (!cb) {
+                        throw new Error('No validation callback provided');
+                    }
+                    let {err, val} = cb(answer);
+                    if (err) {
+                        msg = err.message;
+                    } else {
+                        return val;
+                    }
+                    break;
             }
         } while (force);
-    } finally
-    {
+    } finally {
         rl.close();
     }
 
@@ -213,12 +187,12 @@ export const Settings = settings;
  * @param q {string} question
  * @returns {Promise<boolean>}
  */
-export const confirm = async(q)=>{
+export const confirm = async (q) => {
     let {stdin: input, stdout: output} = process;
     const rl = readline.createInterface({input, output});
-    return await question(q+' (y/n)', 'custom', {
-        force: false, cb: s=>{
-            return {val: s.toLowerCase().trim()=='y'};
+    return await question(q + ' (y/n)', 'custom', {
+        force: false, cb: s => {
+            return {val: s.toLowerCase().trim() == 'y'};
         }
     });
 };
@@ -228,10 +202,9 @@ export const confirm = async(q)=>{
  * @param paths {string}
  * @returns {string}
  */
-export const join_mkdir = (...paths)=>{
+export const join_mkdir = (...paths) => {
     let dir = path.join(...paths);
-    if (!fs.existsSync(dir))
-    {
+    if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir);
     }
     return dir;
@@ -242,15 +215,13 @@ export const join_mkdir = (...paths)=>{
  * @param paths {string}
  * @returns {string}
  */
-export const join_mkfile = (...paths)=>{
+export const join_mkfile = (...paths) => {
     let filepath = path.join(...paths);
     let dir = path.dirname(filepath);
-    if (!fs.existsSync(dir))
-    {
+    if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir);
     }
-    if (!fs.existsSync(filepath))
-    {
+    if (!fs.existsSync(filepath)) {
         fs.writeFileSync(filepath, '', 'utf-8');
     }
     return filepath;
@@ -261,10 +232,9 @@ export const join_mkfile = (...paths)=>{
  * @param fpath {string} filepath. Create dir if needed
  * @param obj {any} JSON serializable
  */
-export const save_json = (fpath, obj)=>{
+export const save_json = (fpath, obj) => {
     let dir = path.dirname(fpath);
-    if (!fs.existsSync(dir))
-    {
+    if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir);
     }
     fs.writeFileSync(fpath, JSON.stringify(obj, null, 2), 'utf-8');
@@ -281,57 +251,63 @@ export const save_json = (fpath, obj)=>{
 export const read_json = (fpath, {
     create_default = false, def_val = {},
     no_error = false
-} = {})=>{
-    if (!fs.existsSync(fpath) && create_default)
-    {
+} = {}) => {
+    if (!fs.existsSync(fpath) && create_default) {
         save_json(fpath, def_val);
         return def_val;
     }
-    try
-    {
+    try {
         let raw = fs.readFileSync(fpath, 'utf-8');
         return JSON.parse(raw)
-    } catch(e)
-    {
-        if (!no_error)
-        {
+    } catch (e) {
+        if (!no_error) {
             throw e;
         }
 
-        if (create_default)
-        {
+        if (create_default) {
             save_json(fpath, def_val);
         }
     }
     return def_val;
 }
 
-Map.prototype.keys_arr = function(){
+Map.prototype.keys_arr = function () {
     return Array.from(this.keys())
 };
-Map.prototype.values_arr = function(){
+Map.prototype.values_arr = function () {
     return Array.from(this.values());
 };
-Map.prototype.entries_arr = function(){return Array.from(this.entries());};
-
-Array.prototype.to_map = function(key_fn){
-    return new Map(this.map(x=>[key_fn(x), x]));
-};
-Array.prototype.sum = function(val_func){return _.sum(this, val_func);};
-Array.prototype.max = function(val_func){return _.max(this, val_func);};
-Array.prototype.min = function(val_func){return _.min(this, val_func);};
-Array.prototype.select_recursive = function(val_func){return _.select_recursive(this, val_func);};
-Array.prototype.sort_by = function(val_func){
-    val_func = val_func || (x=>x);
-    let res = this.sort((a, b)=>val_func(a)-val_func(b));
-    return res;
+Map.prototype.entries_arr = function () {
+    return Array.from(this.entries());
 };
 
-Function.prototype.es6_args = function(){
+if (process.env.EXTEND_ARRAY_PROTO) {
+    Array.prototype.to_map = function (key_fn) {
+        return new Map(this.map(x => [key_fn(x), x]));
+    };
+    Array.prototype.sum = function (val_func) {
+        return _.sum(this, val_func);
+    };
+    Array.prototype.max = function (val_func) {
+        return _.max(this, val_func);
+    };
+    Array.prototype.min = function (val_func) {
+        return _.min(this, val_func);
+    };
+    Array.prototype.select_recursive = function (val_func) {
+        return _.select_recursive(this, val_func);
+    };
+    Array.prototype.sort_by = function (val_func) {
+        val_func = val_func || (x => x);
+        let res = this.sort((a, b) => val_func(a) - val_func(b));
+        return res;
+    };
+}
+
+Function.prototype.es6_args = function () {
     let _this = this;
-    return function(s){
-        if (Array.isArray(s))
-        {
+    return function (s) {
+        if (Array.isArray(s)) {
             s = s[0];
         }
         return _this(s);
@@ -339,7 +315,7 @@ Function.prototype.es6_args = function(){
 }
 
 /*** @type {function(string): string[]}*/
-export const qw = (str=>str?.trim()?.split(' ')?.filter(Boolean)).es6_args();
+export const qw = (str => str?.trim()?.split(' ')?.filter(Boolean)).es6_args();
 
 const date_cfg = new Map([
     [date_and_time.addYears, qw`years y`],
@@ -369,7 +345,7 @@ export const date = {
      * @param utc {boolean}
      * @return {string}
      */
-    format: function(d_obj, format, utc = false){
+    format: function (d_obj, format, utc = false) {
         d_obj = new Date(d_obj);
         return date_and_time.format(d_obj, format, utc);
     },
@@ -377,9 +353,9 @@ export const date = {
      * @param _date {Date}
      * @param opt
      */
-    add: function add(_date, opt){
-        date_cfg.forEach((times, func)=>{
-            let values = +times.map(x=>opt[x]).filter(Number.isInteger).sum();
+    add: function add(_date, opt) {
+        date_cfg.forEach((times, func) => {
+            let values = +times.map(x => opt[x]).filter(Number.isInteger).sum();
             _date = func(_date, values);
         });
         return _date;
@@ -389,19 +365,16 @@ export const date = {
      * @param mls {number}
      * @return {string}
      */
-    str2dur: function(mls){
+    str2dur: function (mls) {
         let parts = [];
-        for (let [key, zone] of dur_cfg.entries_arr().sort_by(x=>-x[1]))
-        {
-            if (mls>=zone)
-            {
-                parts.push(Math.floor(mls / zone)+key);
+        for (let [key, zone] of dur_cfg.entries_arr().sort_by(x => -x[1])) {
+            if (mls >= zone) {
+                parts.push(Math.floor(mls / zone) + key);
                 mls = mls % zone;
             }
         }
-        if (mls)
-        {
-            parts.push(mls+'mls');
+        if (mls) {
+            parts.push(mls + 'mls');
         }
         return parts.join(' ');
     },
@@ -410,17 +383,14 @@ export const date = {
      * @param str {string}
      * @return {number}
      */
-    dur2str: function(str){
+    dur2str: function (str) {
         let res = 0, i;
         let dur_cfg_copy = new Map([...dur_cfg.entries_arr(),
             ['mls', 1]]);
-        for (let part of qw(str))
-        {
-            for (let [key, zone] of dur_cfg_copy.entries_arr())
-            {
+        for (let part of qw(str)) {
+            for (let [key, zone] of dur_cfg_copy.entries_arr()) {
                 if (part.includes(key)
-                    && Number.isInteger(i = +part.replace(key, '')))
-                {
+                    && Number.isInteger(i = +part.replace(key, ''))) {
                     res += i * zone;
                 }
             }
@@ -429,11 +399,11 @@ export const date = {
     }
 };
 
-export const sleep = async mls=>new Promise((resolve)=>{
-    setTimeout(()=>resolve(true), mls);
+export const sleep = async mls => new Promise((resolve) => {
+    setTimeout(() => resolve(true), mls);
 })
 
-export const to_arr = obj=>Array.isArray(obj) ? obj : [obj];
+export const to_arr = obj => Array.isArray(obj) ? obj : [obj];
 export const _ = {
     /**
      * Find index by compare func
@@ -442,17 +412,14 @@ export const _ = {
      * @param compare_fn {(l: any, r: any)=>number} compare func
      * @returns {number}
      */
-    find_index: function(arr, iteratee, compare_fn){
-        if (!arr?.length)
-        {
+    find_index: function (arr, iteratee, compare_fn) {
+        if (!arr?.length) {
             return -1;
         }
         let min = iteratee(arr[0]), index = 0;
-        for (let i = 1; i<arr.length; i++)
-        {
+        for (let i = 1; i < arr.length; i++) {
             let other = iteratee(arr[i]);
-            if (compare_fn(min, other)>0)
-            {
+            if (compare_fn(min, other) > 0) {
                 min = other;
                 index = i;
             }
@@ -464,8 +431,8 @@ export const _ = {
      * @param arr {Array}
      * @param min_by {(any)=>any | undefined}
      */
-    min: function(arr, min_by){
-        return arr[_.find_index(arr, min_by || (x=>x), (l, r)=>l-r)];
+    min: function (arr, min_by) {
+        return arr[_.find_index(arr, min_by || (x => x), (l, r) => l - r)];
     },
     /**
      *
@@ -473,16 +440,16 @@ export const _ = {
      * @param max_by {(any)=>any | undefined}
      * @returns {*}
      */
-    max: function(arr, max_by){
-        return arr[_.find_index(arr, max_by || (x=>x), (l, r)=>r-l)];
+    max: function (arr, max_by) {
+        return arr[_.find_index(arr, max_by || (x => x), (l, r) => r - l)];
     },
     /**
      * @param arr {Array}
      * @param sum_by {(any)=>number | undefined}
      */
-    sum: function(arr, sum_by){
-        sum_by = sum_by || (x=>x);
-        return arr.reduce((p, c)=>p+sum_by(c), 0);
+    sum: function (arr, sum_by) {
+        sum_by = sum_by || (x => x);
+        return arr.reduce((p, c) => p + sum_by(c), 0);
     },
     /**
      * Compare flat arrays
@@ -490,11 +457,11 @@ export const _ = {
      * @param right {Array}
      * @returns {{common: Array, left: Array, right: Array}}
      */
-    arr_diff: function(left, right){
+    arr_diff: function (left, right) {
         return {
-            left: left.filter(x=>!right.includes(x)),
-            common: left.filter(x=>right.includes(x)),
-            right: right.filter(x=>!left.includes(x)),
+            left: left.filter(x => !right.includes(x)),
+            common: left.filter(x => right.includes(x)),
+            right: right.filter(x => !left.includes(x)),
         }
     },
     /**
@@ -502,12 +469,10 @@ export const _ = {
      * @param arr {Array}
      * @param child_fn {(x: any)=>Array}
      */
-    select_recursive: function(arr, child_fn){
+    select_recursive: function (arr, child_fn) {
         let res = [];
-        if (Array.isArray(arr))
-        {
-            for (let elem of arr)
-            {
+        if (Array.isArray(arr)) {
+            for (let elem of arr) {
                 res.push(elem);
                 res.push(..._.select_recursive(child_fn(elem), child_fn));
             }
@@ -537,16 +502,26 @@ const html_tags = {
     white_b: '\x1b[47m',
     gray_b: '\x1b[100m',
 };
-export const console_format = txt=>{
+export const console_format = txt => {
     let reset = '\x1b[0m';
-    for (let [key, val] of Object.entries(html_tags))
-    {
+    for (let [key, val] of Object.entries(html_tags)) {
         let open = new RegExp(`<\\s*${key}\\s*>`, 'g');
         let close = new RegExp(`<\\s*/\\s*${key}\\s*>`, 'g');
         txt = txt.replace(open, val).replace(close, reset);
     }
     return txt;
 };
+
+export function call_once(async_fn) {
+    let was_init;
+    return async ()=>{
+        try {
+            await async_fn();
+        } catch (e) {
+            was_init = undefined;
+        }
+    };
+}
 
 const log_levels = {
     debug: console.debug.bind(console),
@@ -556,17 +531,16 @@ const log_levels = {
     warn: console.warn.bind(console),
     error: console.error.bind(console),
 
-    get_levels: function(){
+    get_levels: function () {
         return qw`debug trace info log warn error`;
     },
-    get_fn_by_lvl: function(level){
+    get_fn_by_lvl: function (level) {
         level = level.trim().toLowerCase();
-        if (this.get_levels().includes(level))
-        {
+        if (this.get_levels().includes(level)) {
             return this[level];
         }
     },
-    accept_level_mask: function(mask, level){
+    accept_level_mask: function (mask, level) {
         level = level.trim().toLowerCase();
         let all = this.get_levels();
         if (!all.includes(level))
@@ -596,45 +570,43 @@ const log_levels = {
  */
 
 /*** @param cfg {LogCfg}*/
-export const setup_log = (cfg)=>{
+export const setup_log = (cfg) => {
     if (!cfg.log_dir)
         throw new Error('You should set log directory!');
-    if (cfg.date_format && typeof cfg.date_format!='string')
+    if (cfg.date_format && typeof cfg.date_format != 'string')
         throw new Error('date_format should be a string!');
 
     const to_write = [];
     let scheduled = false;
 
-    function get_log_file(){
+    function get_log_file() {
         return join_mkfile(cfg.log_dir, date.format(new Date(),
-            cfg.logfile_format || 'DD.MM.YYYY', true)+'.log');
+            cfg.logfile_format || 'DD.MM.YYYY', true) + '.log');
     }
 
-    function flush(){
-        while (to_write.length)
-        {
-            let write = to_write.splice(0, to_write.length).join(os.EOL);
+    function flush() {
+        while (to_write.length) {
+            let write = '\n'+to_write.splice(0, to_write.length).join('\n');
             let fpath = get_log_file();
             fs.appendFileSync(fpath, write, 'utf-8');
         }
         scheduled = false;
     }
 
-    const write_fn = lvl=>(...txt)=>{
+    const write_fn = lvl => (...txt) => {
         let final_text = lvl.toString().toUpperCase().padEnd(7, ' ')
-        +date.format(new Date(), cfg.date_format || 'DD.MM.YYYY HH:mm:ss.SSS')
-        +' '+format(...txt);
+            + date.format(new Date(), cfg.date_format || 'DD.MM.YYYY HH:mm:ss.SSS')
+            + ' ' + format(...txt);
 
-        if (!cfg.mask || log_levels.accept_level_mask(cfg.mask, lvl))
-        {
+
+        if (!cfg.mask || log_levels.accept_level_mask(cfg.mask, lvl)) {
             to_write.push(final_text);
-            if (!scheduled)
-            {
+            if (!scheduled) {
                 process.nextTick(flush);
                 scheduled = true;
             }
         }
         log_levels.get_fn_by_lvl(lvl)?.(final_text);
     }
-    log_levels.get_levels().forEach(fn=>console[fn] = write_fn(fn));
+    log_levels.get_levels().forEach(fn => console[fn] = write_fn(fn));
 };

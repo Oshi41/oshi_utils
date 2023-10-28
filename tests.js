@@ -1,3 +1,5 @@
+process.env.EXTEND_ARRAY_PROTO = 'true';
+
 import {describe, it, test, mock, beforeEach, afterEach} from 'node:test';
 import {fail, deepStrictEqual, ok} from 'assert';
 import {_, qw, question, sleep, date, console_format, setup_log, join_mkfile} from './index.js';
