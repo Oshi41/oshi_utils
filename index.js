@@ -8,6 +8,7 @@ import date_and_time from 'date-and-time';
 import settings from "./settings.js";
 import {Writable, Readable} from 'stream';
 import file_dialog from 'node-file-dialog';
+import * as crypto from "crypto-js";
 
 /**
  * @typedef {'int' | 'float' | 'positive_int' | 'positive_float' | 'string' | 'date' | 'mail' | 'password' | 'plain_list'
@@ -398,7 +399,6 @@ export const date = {
         return res;
     }
 };
-
 export const sleep = async mls => new Promise((resolve) => {
     setTimeout(() => resolve(true), mls);
 })
@@ -521,6 +521,27 @@ export function call_once(async_fn) {
             was_init = undefined;
         }
     };
+}
+
+/**
+ * Returns string hash
+ * @param {string} str - any string
+ * @returns {string}
+ */
+export function hash(str){
+    return crypto.MD5(str);
+}
+
+/**
+ * Returns hash of file content
+ * @param {string} str - path to file
+ * @returns {WordArray|string}
+ */
+export function filehash(str){
+    if (!fs.existsSync(str))
+        return '';
+    let text = fs.readFileSync(str, 'utf-8');
+    return crypto.MD5(text);
 }
 
 const log_levels = {
