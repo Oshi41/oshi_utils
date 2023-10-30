@@ -13,14 +13,14 @@ import {
     join_mkfile,
     hash,
     safe_rm,
-    filehash
+    filehash, exec
 } from './index.js';
 import os from "os";
 import fs from "fs";
 import path from "path";
 import readline from "readline";
 import Settings from './settings.js';
-import {Writable} from "stream";
+import child_process from 'child_process';
 
 describe('_.min', ()=>{
     const _t = (name, arr, expected, fn)=>it(name, ()=>{
@@ -271,7 +271,6 @@ describe('hash', ()=>{
       }
    });
 });
-
 describe('Settings', ()=>{
     let filepath;
     beforeEach(()=>{
@@ -307,4 +306,27 @@ describe('Settings', ()=>{
         bool: true,
         array: ['str', 1, 1.2, {str: 'str'}, true],
     }, 'other password 1234567890!@#$%^&*()');
+});
+describe('child_process', ()=>{
+   it('works', async ()=>{
+       let cmd = `cd "${os.homedir()}" && ls -t`;
+       let text = await new Promise((resolve, reject) => {
+           let command = 'powershell', f_arg = 'Invoke-Expression';
+           let res = child_process.spawnSync(command, [f_arg, cmd], {
+               env: process.env,
+               cwd: process.cwd(),
+           });
+           if (res.error)
+               reject(res.error);
+
+           let text = res?.output?.map(x=>x?.toString('utf-8')).filter(Boolean).join('\n')
+           resolve(text);
+       });
+       deepStrictEqual(!!text, true);
+   });
+   it('works with exec', async ()=>{
+       let cmd = `cd "${os.homedir()}" && ls -t`;
+       let {result, code} = await exec(cmd);
+       deepStrictEqual(!!result, true);
+   });
 });

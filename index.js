@@ -9,6 +9,7 @@ import settings from "./settings.js";
 import {Writable, Readable} from 'stream';
 import file_dialog from 'node-file-dialog';
 import crypto from "crypto-js";
+import child_process, {exec as _exec} from 'child_process';
 
 /**
  * @typedef {'int' | 'float' | 'positive_int' | 'positive_float' | 'string' | 'date' | 'mail' | 'password' | 'plain_list'
@@ -519,7 +520,7 @@ export const console_format = txt => {
 
 export function lazy(async_fn) {
     let promise;
-    return async ()=>{
+    return async () => {
         promise = promise || new Promise(async (resolve, reject) => {
             try {
                 await async_fn();
@@ -537,7 +538,7 @@ export function lazy(async_fn) {
  * @param {string} str - any string
  * @returns {string}
  */
-export function hash(str){
+export function hash(str) {
     return crypto.MD5(str)?.toString();
 }
 
@@ -546,11 +547,42 @@ export function hash(str){
  * @param {string} str - path to file
  * @returns {WordArray|string}
  */
-export function filehash(str){
+export function filehash(str) {
     if (!fs.existsSync(str))
         return '';
     let text = fs.readFileSync(str, 'utf-8');
     return crypto.MD5(text).toString();
+}
+
+/**
+ * @param cmd {string}
+ * @param opts {CommonSpawnOptions}
+ * @returns {Promise<{code: number, result: string, pid: number}>}
+ */
+export async function exec(cmd, opts = {}) {
+    return new Promise(async (resolve, reject) => {
+        let command = 'bash', f_arg = '-c';
+        if (os.platform() == 'win32')
+        {
+            command = 'powershell';
+            f_arg = 'Invoke-Expression';
+        }
+        let res = child_process.spawnSync(command, [f_arg, `"${cmd.replace(/\"/g, `'`)}"`], {
+            cwd: process.cwd(),
+            env: process.env,
+            encoding: 'buffer',
+            ...opts
+        });
+        if (res.error)
+            return reject(res.error);
+        let text = res.output?.map(x=>x?.toString('utf-8')).filter(Boolean).join('\n');
+        let result = {
+            code: res.status,
+            result: text,
+            pid: res.pid,
+        };
+        return resolve(result);
+    });
 }
 
 const log_levels = {
@@ -616,7 +648,7 @@ export const setup_log = (cfg) => {
 
     function flush() {
         while (to_write.length) {
-            let write = '\n'+to_write.splice(0, to_write.length).join('\n');
+            let write = '\n' + to_write.splice(0, to_write.length).join('\n');
             let fpath = get_log_file();
             fs.appendFileSync(fpath, write, 'utf-8');
         }
