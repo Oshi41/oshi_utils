@@ -8,7 +8,7 @@ import date_and_time from 'date-and-time';
 import settings from "./settings.js";
 import {Writable, Readable} from 'stream';
 import file_dialog from 'node-file-dialog';
-import * as crypto from "crypto-js";
+import crypto from "crypto-js";
 
 /**
  * @typedef {'int' | 'float' | 'positive_int' | 'positive_float' | 'string' | 'date' | 'mail' | 'password' | 'plain_list'
@@ -272,6 +272,11 @@ export const read_json = (fpath, {
     return def_val;
 }
 
+export function safe_rm(filepath) {
+    if (fs.existsSync(filepath))
+        fs.rmSync(filepath, {force: true, recursive: true});
+}
+
 Map.prototype.keys_arr = function () {
     return Array.from(this.keys())
 };
@@ -512,14 +517,18 @@ export const console_format = txt => {
     return txt;
 };
 
-export function call_once(async_fn) {
-    let was_init;
+export function lazy(async_fn) {
+    let promise;
     return async ()=>{
-        try {
-            await async_fn();
-        } catch (e) {
-            was_init = undefined;
-        }
+        promise = promise || new Promise(async (resolve, reject) => {
+            try {
+                await async_fn();
+                resolve();
+            } catch (e) {
+                reject(e);
+            }
+        });
+        return await promise;
     };
 }
 
@@ -529,7 +538,7 @@ export function call_once(async_fn) {
  * @returns {string}
  */
 export function hash(str){
-    return crypto.MD5(str);
+    return crypto.MD5(str)?.toString();
 }
 
 /**
@@ -541,7 +550,7 @@ export function filehash(str){
     if (!fs.existsSync(str))
         return '';
     let text = fs.readFileSync(str, 'utf-8');
-    return crypto.MD5(text);
+    return crypto.MD5(text).toString();
 }
 
 const log_levels = {

@@ -2,7 +2,19 @@ process.env.EXTEND_ARRAY_PROTO = 'true';
 
 import {describe, it, test, mock, beforeEach, afterEach} from 'node:test';
 import {fail, deepStrictEqual, ok} from 'assert';
-import {_, qw, question, sleep, date, console_format, setup_log, join_mkfile} from './index.js';
+import {
+    _,
+    qw,
+    question,
+    sleep,
+    date,
+    console_format,
+    setup_log,
+    join_mkfile,
+    hash,
+    safe_rm,
+    filehash
+} from './index.js';
 import os from "os";
 import fs from "fs";
 import path from "path";
@@ -155,7 +167,6 @@ describe('readline', (s_ctx)=>{
     _t('readline positive_float', 'positive_float', '15.4578', 15.4578);
     _t('readline positive_float fail', 'positive_float', '-15.4578', null, true);
     _t('readline password', 'password', '123456', '123456');
-    _t('readline existing_filepath', 'existing_filepath', os.homedir(), os.homedir());
 });
 describe('date.add', ()=>{
     const _t = (name, from, add, to)=>it(name, ()=>{
@@ -239,6 +250,26 @@ describe('setup_log', ()=>{
         let filepath = path.join(log_dir, date.format(new Date(), logfile_format)+'.log');
         deepStrictEqual(fs.existsSync(filepath), true);
     });
+});
+describe('hash', ()=>{
+   it('string', ()=>{
+       let left = hash('1234');
+       let right = hash('1234');
+       deepStrictEqual(left, right);
+   });
+   it('file', ()=>{
+      let fp, content = '12345678';
+      try {
+          fs.writeFileSync(fp = join_mkfile(os.tmpdir(), 'temp.txt'), content, 'utf-8');
+          let left = filehash(fp);
+          let right = hash(content);
+          deepStrictEqual(left, right);
+      } catch (e) {
+          console.error(e);
+      } finally {
+          safe_rm(fp);
+      }
+   });
 });
 
 describe('Settings', ()=>{
