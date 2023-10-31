@@ -205,7 +205,7 @@ export const confirm = async (q) => {
  * @returns {string}
  */
 export const join_mkdir = (...paths) => {
-    let dir = path.join(...paths);
+    let dir = path.resolve(...paths);
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir);
     }
@@ -218,7 +218,7 @@ export const join_mkdir = (...paths) => {
  * @returns {string}
  */
 export const join_mkfile = (...paths) => {
-    let filepath = path.join(...paths);
+    let filepath = path.resolve(...paths);
     let dir = path.dirname(filepath);
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir);
