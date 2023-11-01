@@ -485,6 +485,17 @@ export const _ = {
         }
         return res;
     },
+    /**
+     * Sorting with function selecting key per array item. Using default comparer.
+     * Sorting and returns same array!
+     * @param arr {Array}
+     * @param value_fn {(any)=>any}
+     */
+    sort_by: function (arr, value_fn) {
+        value_fn = value_fn || (x=>x);
+        let res = arr.sort((a, b) => value_fn(a) - value_fn(b));
+        return res;
+    }
 }
 
 const html_tags = {
