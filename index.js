@@ -362,7 +362,7 @@ export const date = {
      */
     add: function add(_date, opt) {
         date_cfg.forEach((times, func) => {
-            let values = +times.map(x => opt[x]).filter(Number.isInteger).sum();
+            let values = _.sum(+times.map(x => opt[x]).filter(Number.isInteger))
             _date = func(_date, values);
         });
         return _date;
@@ -374,7 +374,7 @@ export const date = {
      */
     str2dur: function (mls) {
         let parts = [];
-        for (let [key, zone] of dur_cfg.entries_arr().sort_by(x => -x[1])) {
+        for (let [key, zone] of _.sort_by(dur_cfg.entries_arr(), x => -x[1])) {
             if (mls >= zone) {
                 parts.push(Math.floor(mls / zone) + key);
                 mls = mls % zone;
