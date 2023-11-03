@@ -362,7 +362,7 @@ export const date = {
      */
     add: function add(_date, opt) {
         date_cfg.forEach((times, func) => {
-            let values = _.sum(+times.map(x => opt[x]).filter(Number.isInteger))
+            let values = +_.sum(times.map(x => opt[x]).filter(Number.isInteger))
             _date = func(_date, values);
         });
         return _date;
