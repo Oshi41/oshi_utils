@@ -683,3 +683,25 @@ export const setup_log = (cfg) => {
     }
     log_levels.get_levels().forEach(fn => console[fn] = write_fn(fn));
 };
+
+export class Awaiter {
+    #promise;
+    #resolve;
+
+    constructor() {
+        this.#install_promise();
+    }
+
+    async wait_for(){
+        return await this.#promise;
+    }
+    #install_promise(){
+        this.#promise = new Promise(resolve => {
+            this.#resolve = resolve;
+        });
+    }
+    resolve(value){
+        this.#resolve(value);
+        this.#install_promise();
+    }
+}

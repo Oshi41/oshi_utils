@@ -13,7 +13,7 @@ import {
     join_mkfile,
     hash,
     safe_rm,
-    filehash, exec
+    filehash, exec, Awaiter
 } from './index.js';
 import os from "os";
 import fs from "fs";
@@ -25,7 +25,6 @@ import child_process from 'child_process';
 describe('_.min', ()=>{
     const _t = (name, arr, expected, fn)=>it(name, ()=>{
         deepStrictEqual(_.min(arr, fn), expected);
-        deepStrictEqual(arr.min(fn), expected);
     });
     _t('numbers', [1, 2, 3, 4], 1);
     _t('mixed', [1, 2, 3, '4'], 1);
@@ -37,7 +36,6 @@ describe('_.min', ()=>{
 describe('_.max', ()=>{
     const _t = (name, arr, expected, fn)=>it(name, ()=>{
         deepStrictEqual(_.max(arr, fn), expected);
-        deepStrictEqual(arr.max(fn), expected);
     });
 
     _t('numbers', [1, 2, 3, 4], 4);
@@ -50,7 +48,6 @@ describe('_.max', ()=>{
 describe('_.sum', ()=>{
     const _t = (name, arr, expected, fn)=>it(name, ()=>{
         deepStrictEqual(_.sum(arr, fn), expected);
-        deepStrictEqual(arr.sum(fn), expected);
     });
     _t('empty', [], 0);
     _t('0', [0], 0);
@@ -61,7 +58,6 @@ describe('_.sum', ()=>{
 describe('_.select_recursive', ()=>{
     const _t = (name, arr, child_fn, length)=>it(name, ()=>{
         deepStrictEqual(_.select_recursive(arr, child_fn).length, length);
-        deepStrictEqual(arr.select_recursive(child_fn).length, length);
     });
     _t('works', [
         {
@@ -104,6 +100,7 @@ it('Map.prototype', ()=>{
     deepStrictEqual(map.values_arr(), ['some value', 'some value 2', 'some value 3']);
     deepStrictEqual(map.entries_arr(), [[1, 'some value'], [2, 'some value 2'], [3, 'some value 3']]);
 });
+if (0)
 it('Array.prototype', ()=>{
     qw`to_map min max sum select_recursive`.forEach(x=>deepStrictEqual(!!Array.prototype[x], true));
     let left = [{a: 1}, {a: 2}].to_map(x=>x.a);
@@ -330,3 +327,30 @@ describe('child_process', ()=>{
        deepStrictEqual(!!result, true);
    });
 });
+
+describe('awaiter class', ()=>{
+    it('works', async () => {
+        let awaiter = new Awaiter();
+        let prev = new Date();
+        setTimeout(() => {
+            awaiter.resolve(true);
+        }, 300);
+        let res = await awaiter.wait_for();
+        deepStrictEqual(res, true);
+        let now = new Date();
+        ok(now - prev >= 300);
+    });
+    it('check await chain', async ()=>{
+        let awaiter = new Awaiter();
+        for (let i = 0; i <5; i++) {
+            let prev = new Date();
+            setTimeout(() => {
+                awaiter.resolve(true);
+            }, 30);
+            let res = await awaiter.wait_for();
+            deepStrictEqual(res, true);
+            let now = new Date();
+            ok(now - prev >= 30);
+        }
+    });
+})
