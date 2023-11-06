@@ -492,7 +492,7 @@ export const _ = {
      * @param value_fn {(any)=>any}
      */
     sort_by: function (arr, value_fn) {
-        value_fn = value_fn || (x=>x);
+        value_fn = value_fn || (x => x);
         let res = arr.sort((a, b) => value_fn(a) - value_fn(b));
         return res;
     }
@@ -573,8 +573,7 @@ export function filehash(str) {
 export async function exec(cmd, opts = {}) {
     return new Promise(async (resolve, reject) => {
         let command = 'bash', f_arg = '-c';
-        if (os.platform() == 'win32')
-        {
+        if (os.platform() == 'win32') {
             command = 'powershell';
             f_arg = 'Invoke-Expression';
         }
@@ -586,7 +585,7 @@ export async function exec(cmd, opts = {}) {
         });
         if (res.error)
             return reject(res.error);
-        let text = res.output?.map(x=>x?.toString('utf-8')).filter(Boolean).join('\n');
+        let text = res.output?.map(x => x?.toString('utf-8')).filter(Boolean).join('\n');
         let result = {
             code: res.status,
             result: text,
@@ -684,6 +683,16 @@ export const setup_log = (cfg) => {
     log_levels.get_levels().forEach(fn => console[fn] = write_fn(fn));
 };
 
+export function debounce(func, mls) {
+    let timer;
+    return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+            func.apply(this, args);
+        }, mls);
+    };
+}
+
 export class Awaiter {
     #promise;
     #resolve;
@@ -692,15 +701,17 @@ export class Awaiter {
         this.#install_promise();
     }
 
-    async wait_for(){
+    async wait_for() {
         return await this.#promise;
     }
-    #install_promise(){
+
+    #install_promise() {
         this.#promise = new Promise(resolve => {
             this.#resolve = resolve;
         });
     }
-    resolve(value){
+
+    resolve(value) {
         this.#resolve(value);
         this.#install_promise();
     }
