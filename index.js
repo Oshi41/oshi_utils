@@ -684,11 +684,21 @@ export const setup_log = (cfg) => {
 };
 
 export function debounce(func, mls) {
-    let timer;
+    let timer, promise;
     return (...args) => {
+        if (promise)
+            return;
         clearTimeout(timer);
         timer = setTimeout(() => {
-            func.apply(this, args);
+            promise = new Promise(async (resolve, reject) => {
+                try {
+                    let res = await func.apply(this, args);
+                    resolve(res);
+                    promise = null;
+                } catch (e) {
+                    reject(e);
+                }
+            });
         }, mls);
     };
 }

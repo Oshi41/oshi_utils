@@ -369,4 +369,23 @@ describe('debounce', ()=>{
         await sleep(mls+1);
         deepStrictEqual(a, 1);
     });
+    it ('async works', async()=>{
+       let a = 0, fn = debounce(async () => {
+           await sleep(50);
+           a++;
+       }, 50);
+
+        for (let j = 0; j < 10; j++) {
+            fn();
+            deepStrictEqual(a, 0);
+        }
+        await sleep(50);
+        deepStrictEqual(a, 0);
+        for (let j = 0; j < 10; j++) {
+            fn();
+            deepStrictEqual(a, 0);
+        }
+        await sleep(50);
+        deepStrictEqual(a, 1);
+    });
 });
