@@ -694,9 +694,10 @@ export function debounce(func, mls) {
                 try {
                     let res = await func.apply(this, args);
                     resolve(res);
-                    promise = null;
                 } catch (e) {
                     reject(e);
+                } finally {
+                    promise = null;
                 }
             });
         }, mls);
