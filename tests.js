@@ -13,7 +13,7 @@ import {
     join_mkfile,
     hash,
     safe_rm,
-    filehash, exec, Awaiter, debounce
+    filehash, exec, Awaiter, debounce, Queue
 } from './index.js';
 import os from "os";
 import fs from "fs";
@@ -387,5 +387,18 @@ describe('debounce', ()=>{
         }
         await sleep(50);
         deepStrictEqual(a, 1);
+    });
+});
+
+describe('Queue', ()=>{
+    it('works', async ()=>{
+        let a = 0, queue = new Queue(async arg=>{
+            await sleep(30);
+            console.log('Awaited', a);
+            a++;
+        });
+        queue.push(1, 1, 1);
+        await sleep(100);
+        deepStrictEqual(a, 3);
     });
 });

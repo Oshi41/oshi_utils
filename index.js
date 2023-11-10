@@ -727,3 +727,32 @@ export class Awaiter {
         this.#install_promise();
     }
 }
+
+export class Queue {
+    constructor(process_single_item) {
+        this._process_single_item = process_single_item;
+        this.queue = [];
+        this.processing = false;
+    }
+
+    push(...items) {
+        this.queue.push(...items);
+        this.#process_queue();
+    }
+
+    async #process_queue() {
+        if (this.processing)
+            return;
+        while (this.queue.length) {
+            this.processing = true;
+            try {
+                let first = this.queue[0];
+                await this._process_single_item(first)
+                this.queue.shift();
+            } catch (e) {
+                console.error('Error during single item proceed:', e);
+            }
+        }
+        this.processing = false;
+    }
+}
