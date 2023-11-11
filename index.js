@@ -712,7 +712,17 @@ export class Awaiter {
         this.#install_promise();
     }
 
-    async wait_for() {
+    async wait_for(mls = Number.MAX_VALUE) {
+        if (Number.isInteger(mls) && mls > 0 && mls < Number.MAX_VALUE)
+        {
+            return await Promise.race([
+                this.#promise,
+                sleep(mls).then(()=> {
+                    throw new Error('timeout');
+                }),
+            ]);
+        }
+
         return await this.#promise;
     }
 
