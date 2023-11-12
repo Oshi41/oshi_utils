@@ -1,7 +1,7 @@
 process.env.EXTEND_ARRAY_PROTO = 'true';
 
 import {describe, it, test, mock, beforeEach, afterEach} from 'node:test';
-import {fail, deepStrictEqual, ok} from 'assert';
+import {fail, deepStrictEqual, ok, notEqual} from 'assert';
 import {
     _,
     qw,
@@ -297,27 +297,35 @@ describe('Settings', () => {
         bool: true,
         array: ['str', 1, 1.2, {str: 'str'}, true],
     }, 'other password 1234567890!@#$%^&*()');
-    it('use fresh', async () => {
+    it('use_fresh', async () => {
         let settings = new Settings(filepath, '1234');
         let cfg = settings.use_fresh(20);
-        deepStrictEqual(cfg.current, {});
+        cfg.param = 1;
+        let from_file = await settings.read();
+        deepStrictEqual(cfg.param, from_file.param);
 
         settings.save({
-            param: true,
-            param1: 1234,
+            param1: 1,
+            param2: '1234',
+            param3: {
+                param4: true,
+            },
         });
 
         await sleep(50);
+        from_file = await settings.read();
 
-        deepStrictEqual(cfg.current.param, true);
-        deepStrictEqual(cfg.current.param1, 1234);
+        deepStrictEqual(cfg.param, undefined);
+        deepStrictEqual(cfg.param1, from_file.param1);
+        deepStrictEqual(cfg.param2, from_file.param2);
+        deepStrictEqual(cfg.param3.param4, from_file.param3.param4);
 
-        cfg.current.param2 = '1234';
-        cfg.save();
-
+        cfg.param3.param4 = false;
         await sleep(50);
+        from_file = await settings.read();
 
-        deepStrictEqual(cfg.current.param2, '1234');
+        // Nssting fields are not supported
+        notEqual(cfg.param3.param4, from_file.param3.param4);
     });
 });
 describe('child_process', () => {

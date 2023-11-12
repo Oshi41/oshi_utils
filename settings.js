@@ -36,18 +36,26 @@ export default class Settings {
     }
 
     use_fresh(interval = 200) {
+        const _this = this;
         let cfg = {};
+        const instance = new Proxy(cfg, {
+            has(target, p) {
+                return cfg.hasOwnProperty(p);
+            },
+            get(target, p, receiver) {
+                return cfg[p];
+            },
+            set(target, p, newValue, receiver) {
+                cfg[p] = newValue;
+                _this.save(cfg);
+                return newValue;
+            }
+        })
         fs.watchFile(this.filepath, {interval}, async () => {
-            console.debug('loaded cfg from file changes');
-            Object.keys(cfg).forEach(x=>delete cfg[x]);
-            let source = await this.read() || {}
-            // using the same instance
-            Object.assign(cfg, source);
+            console.debug('loaded from file change')
+            cfg = await _this.read() || {};
         });
-        return {
-            current: cfg,
-            save: ()=>this.save(cfg || {}),
-        }
+        return instance;
     }
 
     async read(default_fn) {
