@@ -38,6 +38,7 @@ export default class Settings {
     use_fresh(interval = 200) {
         const _this = this;
         let cfg = {};
+        _this.read().then(x=>cfg = x || {}); // initial loading
         const instance = new Proxy(cfg, {
             has(target, p) {
                 return cfg.hasOwnProperty(p);
