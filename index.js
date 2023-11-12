@@ -495,6 +495,23 @@ export const _ = {
         value_fn = value_fn || (x => x);
         let res = arr.sort((a, b) => value_fn(a) - value_fn(b));
         return res;
+    },
+    /**
+     * Soft assigning. Nested objects will merge with each other
+     * @param to {any}
+     * @param from {any}
+     */
+    assign: function (to, from) {
+        for (let [key, value] of Object.entries(from || {}))
+        {
+            if (typeof value == 'object')
+            {
+                to[key] = to[key] || {};
+                _.assign(to[key], value);
+            }
+            else
+                to[key] = value;
+        }
     }
 }
 

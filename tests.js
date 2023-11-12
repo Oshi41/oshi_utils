@@ -76,6 +76,20 @@ describe('_.select_recursive', () => {
         {v: 2}
     ], x => x?.children, 4);
 });
+
+describe('_.assign', ()=>{
+   it('works', ()=>{
+      let source = {nested: {}};
+      _.assign(source, {nested: {link1: {url: '1234'}}});
+      deepStrictEqual(source.nested.link1.url, '1234');
+
+      _.assign(source, {nested: {link2: {url: '1234'}}});
+       deepStrictEqual(source.nested.link2.url, '1234');
+
+       _.assign(source, {nested: {link2: {url: '789'}}});
+       deepStrictEqual(source.nested.link2.url, '789');
+   });
+});
 describe('arr_diff', () => {
     const _t = (name, left, right, {l, r, c}) => it(name, () => {
         let diff = _.arr_diff(left, right);
