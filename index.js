@@ -756,16 +756,20 @@ export class Queue {
             return;
         while (this.queue.length) {
             this.processing = true;
-            const cleanup_fns = [];
+            const cleanup_fns = [], on_catch = [];
             try {
                 let first = this.queue[0];
                 const this_param = {
                     finally: fn=>cleanup_fns.push(fn),
+                    catch: fn=>on_catch.push(fn),
                 };
                 await this._process_single_item.bind(this_param)(first);
                 this.queue.shift();
             } catch (e) {
                 console.error('Error during single item proceed:', e);
+                await Promise.all(on_catch.map(x=>x(e)).filter(x=>x.then));
+            } finally {
+                await Promise.all(cleanup_fns.map(x=>x()).filter(x=>x.then));
             }
         }
         this.processing = false;
