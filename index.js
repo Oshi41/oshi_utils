@@ -746,6 +746,7 @@ export class Queue {
     }
 
     push(...items) {
+        items = items.filter(x=>!this.queue.includes(x));
         this.queue.push(...items);
         this.#process_queue();
     }
@@ -755,9 +756,13 @@ export class Queue {
             return;
         while (this.queue.length) {
             this.processing = true;
+            const cleanup_fns = [];
             try {
                 let first = this.queue[0];
-                await this._process_single_item(first)
+                const this_param = {
+                    finally: fn=>cleanup_fns.push(fn),
+                };
+                await this._process_single_item.bind(this_param)(first);
                 this.queue.shift();
             } catch (e) {
                 console.error('Error during single item proceed:', e);

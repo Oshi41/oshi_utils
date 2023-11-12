@@ -49,7 +49,7 @@ export default class Settings {
             set(target, p, newValue, receiver) {
                 cfg[p] = newValue;
                 _this.save(cfg);
-                return newValue;
+                return true;
             }
         })
         fs.watchFile(this.filepath, {interval}, async () => {
