@@ -2,6 +2,8 @@ import fs from "fs";
 import crypto from 'crypto-js';
 import {join_mkfile} from './index.js';
 import machine_id from 'node-machine-id';
+import {EventEmitter} from 'events';
+
 const {machineIdSync} = machine_id;
 
 export default class Settings {
@@ -23,13 +25,29 @@ export default class Settings {
         this.iv = machineIdSync(true);
     }
 
-    #decrypt(txt){
+    #decrypt(txt) {
         let res = crypto.AES.decrypt(txt, this.pass, {iv: this.iv});
         return res.toString(crypto.enc.Utf8);
     }
-    #encrypt(txt){
+
+    #encrypt(txt) {
         let res = crypto.AES.encrypt(txt, this.pass, {iv: this.iv});
         return res.toString();
+    }
+
+    use_fresh(interval = 200) {
+        let cfg = {};
+        fs.watchFile(this.filepath, {interval}, async () => {
+            console.debug('loaded cfg from file changes');
+            Object.keys(cfg).forEach(x=>delete cfg[x]);
+            let source = await this.read() || {}
+            // using the same instance
+            Object.assign(cfg, source);
+        });
+        return {
+            current: cfg,
+            save: ()=>this.save(cfg || {}),
+        }
     }
 
     async read(default_fn) {
@@ -50,7 +68,8 @@ export default class Settings {
             return cfg;
         }
     }
-    save(obj){
+
+    save(obj) {
         join_mkfile(this.filepath);
         let json = JSON.stringify(obj, null, 2);
         if (this.pass)

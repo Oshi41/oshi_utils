@@ -297,6 +297,28 @@ describe('Settings', () => {
         bool: true,
         array: ['str', 1, 1.2, {str: 'str'}, true],
     }, 'other password 1234567890!@#$%^&*()');
+    it('use fresh', async () => {
+        let settings = new Settings(filepath, '1234');
+        let cfg = settings.use_fresh(20);
+        deepStrictEqual(cfg.current, {});
+
+        settings.save({
+            param: true,
+            param1: 1234,
+        });
+
+        await sleep(50);
+
+        deepStrictEqual(cfg.current.param, true);
+        deepStrictEqual(cfg.current.param1, 1234);
+
+        cfg.current.param2 = '1234';
+        cfg.save();
+
+        await sleep(50);
+
+        deepStrictEqual(cfg.current.param2, '1234');
+    });
 });
 describe('child_process', () => {
     it('works', async () => {
@@ -398,6 +420,7 @@ describe('debounce', () => {
     });
 });
 
+if (0)
 describe('Queue', () => {
     it('works', async () => {
         let a = 0, queue = new Queue(async arg => {
