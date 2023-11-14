@@ -512,7 +512,44 @@ export const _ = {
             else
                 to[key] = value;
         }
-    }
+    },
+    get: function (src, paths) {
+        if (typeof paths == 'string')
+            paths = paths.split('.');
+        let _paths = [...paths];
+        let temp = src;
+        while (temp && _paths.length)
+        {
+            temp = temp[_paths.shift()];
+        }
+        return temp;
+    },
+    set: function (src, value, paths) {
+        if (typeof paths == 'string')
+            paths = paths.split('.');
+
+        let temp = src;
+        for (let key of paths.slice(0, -1))
+        {
+            if (!temp.hasOwnProperty(key))
+                temp[key] = {};
+
+            temp = temp[key];
+        }
+        temp[paths[paths.length-1]] = value;
+    },
+    pick: function(src, props){
+        if (typeof props == 'string')
+            props = qw(props);
+        if (!Array.isArray(props) || !props.length)
+            return {};
+        let result = {};
+        props.forEach(key=>{
+            let value = _.get(src, key);
+            _.set(result, value, key);
+        });
+        return result;
+    },
 }
 
 const html_tags = {

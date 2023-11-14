@@ -90,6 +90,56 @@ describe('_.assign', ()=>{
        deepStrictEqual(source.nested.link2.url, '789');
    });
 });
+
+it('_.get', ()=>{
+    let src = {
+        p1: {
+            p2: {
+                p3: {
+                    arr: [1,2,3],
+                    bool: true,
+                    fn: ()=>{},
+                }
+            }
+        }
+    };
+    deepStrictEqual(_.get(src, 'p1.p2.p3.bool'), true);
+    deepStrictEqual(_.get(src, 'p1.p2.p3.arr'), [1, 2, 3]);
+    deepStrictEqual(_.get(src, 'p1.p2.p3.arr.0'), 1);
+    deepStrictEqual(_.get(src, 'p1.p2.p3.p4'), undefined);
+});
+it('_.set', ()=>{
+    let src = {
+        p1: {
+            p2: {
+                p3: {
+                    arr: [1,2,3],
+                    bool: true,
+                    fn: ()=>{},
+                }
+            }
+        }
+    };
+    let _it = (val, path)=>{
+        _.set(src, val, path);
+        deepStrictEqual(_.get(src, path), val);
+    };
+    _it(5, 'p1.p2.p3.arr.0');
+    _it(false, 'p1.p2.p3.bool');
+    _it(false, 'p1.p2.p3.p4.bool');
+});
+it('_.pick', ()=>{
+   let src = {
+       a0: true,
+       a1: true,
+       a2: true,
+       a3: true,
+       a4: true,
+   };
+   deepStrictEqual(_.pick(src, 'a0'), {a0: true});
+   deepStrictEqual(_.pick(src, 'a0 a1'), {a0: true, a1: true});
+   deepStrictEqual(_.pick(src, ['a0', 'a1']), {a0: true, a1: true});
+});
 describe('arr_diff', () => {
     const _t = (name, left, right, {l, r, c}) => it(name, () => {
         let diff = _.arr_diff(left, right);
