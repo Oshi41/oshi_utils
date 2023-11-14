@@ -512,6 +512,7 @@ export const _ = {
             else
                 to[key] = value;
         }
+        return to;
     },
     get: function (src, paths) {
         if (typeof paths == 'string')
