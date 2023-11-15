@@ -763,22 +763,11 @@ export class Awaiter {
     #promise;
     #resolve;
     #reject;
+    #dbg;
 
-    constructor() {
+    constructor(txt) {
+        this.dbg = (...args) => console.debug(`[${txt}:${this.#promise.id}]`, ...args);
         this.#install_promise();
-    }
-
-    async wait_for(mls = Number.MAX_VALUE) {
-        let p = this.#promise, r = this.#reject;
-        if (Number.isInteger(mls) && mls > 0 && mls < Number.MAX_VALUE)
-        {
-            return await Promise.race([
-                p,
-                sleep(mls).then(()=>r(new Error('timeout'))),
-            ]);
-        }
-
-        return await this.#promise;
     }
 
     #install_promise() {
@@ -786,10 +775,29 @@ export class Awaiter {
             this.#resolve = resolve;
             this.#reject = reject;
         });
+        this.#promise.id = Math.floor(Math.random() * 1_000_000);
+        this.dbg('installed');
     }
 
-    resolve(value) {
-        this.#resolve(value);
+    wait_for(mls = Number.MAX_VALUE) {
+        let timeout, reject;
+
+        async function wait_promise(promise) {
+            try {
+                return await promise;
+            } finally {
+                clearTimeout(timeout);
+            }
+        }
+        if (Number.isInteger(mls) && mls > 0 && mls < Number.MAX_VALUE)
+            timeout = setTimeout(()=>reject(new Error('timeout')), [mls]);
+
+        return wait_promise(this.#promise);
+    }
+
+    resolve(val){
+        this.dbg('resolving');
+        this.#resolve(val);
         this.#install_promise();
     }
 }
