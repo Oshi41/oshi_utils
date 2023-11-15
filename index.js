@@ -762,19 +762,19 @@ export function debounce(func, mls) {
 export class Awaiter {
     #promise;
     #resolve;
+    #reject;
 
     constructor() {
         this.#install_promise();
     }
 
     async wait_for(mls = Number.MAX_VALUE) {
+        let p = this.#promise, r = this.#reject;
         if (Number.isInteger(mls) && mls > 0 && mls < Number.MAX_VALUE)
         {
             return await Promise.race([
-                this.#promise,
-                sleep(mls).then(()=> {
-                    throw new Error('timeout');
-                }),
+                p,
+                sleep(mls).then(()=>r(new Error('timeout'))),
             ]);
         }
 
@@ -782,8 +782,9 @@ export class Awaiter {
     }
 
     #install_promise() {
-        this.#promise = new Promise(resolve => {
+        this.#promise = new Promise((resolve, reject) => {
             this.#resolve = resolve;
+            this.#reject = reject;
         });
     }
 

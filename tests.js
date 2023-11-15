@@ -416,7 +416,7 @@ describe('child_process', () => {
     });
 });
 
-describe('awaiter class', () => {
+describe('Awaiter', () => {
     it('works', async () => {
         let awaiter = new Awaiter();
         let prev = new Date();
