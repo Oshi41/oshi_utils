@@ -13,7 +13,7 @@ import {
     join_mkfile,
     hash,
     safe_rm,
-    filehash, exec, Awaiter, debounce, Queue, clamp
+    filehash, exec, Awaiter, debounce, Queue, clamp, promisify
 } from './index.js';
 import os from "os";
 import fs from "fs";
@@ -348,7 +348,54 @@ it('clamp', () => {
     it_date(0, new Date(), '1980', '1980');
     it_date(0, 1, 2, 1);
     it_date(0, new Date(), Number.MAX_VALUE, new Date());
-})
+});
+
+describe('promisify', ()=>{
+   it('works', async () => {
+       let data = {};
+       let fn = promisify(() => {
+           this.after(() => data.after = true);
+           this.finally(() => data.finally = true);
+           data.call = true;
+       });
+       await fn();
+       deepStrictEqual(data.after, true);
+       deepStrictEqual(data.finally, true);
+       deepStrictEqual(data.call, true);
+   });
+   it('works for catch', async () => {
+       let data = {};
+       let fn = promisify(function () {
+           this.after(() => data.after = true);
+           this.catch(() => data.catch = true);
+           this.finally(() => data.finally = true);
+           data.call = true;
+           throw new Error('ERROR');
+       });
+       await fn().catch(x=>{});
+       deepStrictEqual(data.after, false);
+       deepStrictEqual(data.catch, true);
+       deepStrictEqual(data.finally, true);
+       deepStrictEqual(data.call, true);
+   });
+   it('works chain', async () => {
+       let catches = [], finallies = [];
+       let fn = promisify(function () {
+           this.catch(() => catches.push(1));
+           this.catch(() => catches.push(2));
+           this.catch(() => catches.push(3));
+
+           this.finally(() => finallies.push(3));
+           this.finally(() => finallies.push(2));
+           this.finally(() => finallies.push(1));
+
+           throw new Error('here');
+       });
+       await fn().catch(x => {});
+       deepStrictEqual(catches, [3, 2, 1]);
+       deepStrictEqual(finallies, [1, 2, 3]);
+   });
+});
 describe('Settings', () => {
     let filepath;
     beforeEach(() => {

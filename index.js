@@ -769,6 +769,40 @@ export function clamp(min, val, max) {
     return val;
 }
 
+/**
+ * Adds controlling statements to this param
+ * @param fn {function} - function
+ * @returns {function<Promise>}
+ */
+export function promisify(fn) {
+    return async function _promisify(...args) {
+        const after = [], on_catch = [], on_finally = [];
+        let this_arg = {
+            _this: this,
+            after: fn => after.unshift(fn),
+            catch: fn => on_catch.unshift(fn),
+            finally: fn => on_finally.unshift(fn),
+        };
+
+        async function call_hooks(arr) {
+            let promises = arr.map(x => x()).filter(x => x.then);
+            if (promises.length)
+                await Promise.all(promises);
+        }
+
+        try {
+            let res = await fn.bind(this_arg).call(...args);
+            await call_hooks(after);
+            return res;
+        } catch (e) {
+            await call_hooks(on_catch);
+            throw e;
+        } finally {
+            await call_hooks(on_finally);
+        }
+    }
+}
+
 export class Awaiter {
     #promise;
     #resolve;
