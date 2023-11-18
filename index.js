@@ -502,14 +502,11 @@ export const _ = {
      * @param from {any}
      */
     assign: function (to, from) {
-        for (let [key, value] of Object.entries(from || {}))
-        {
-            if (typeof value == 'object')
-            {
+        for (let [key, value] of Object.entries(from || {})) {
+            if (typeof value == 'object') {
                 to[key] = to[key] || {};
                 _.assign(to[key], value);
-            }
-            else
+            } else
                 to[key] = value;
         }
         return to;
@@ -519,8 +516,7 @@ export const _ = {
             paths = paths.split('.');
         let _paths = [...paths];
         let temp = src;
-        while (temp && _paths.length)
-        {
+        while (temp && _paths.length) {
             temp = temp[_paths.shift()];
         }
         return temp;
@@ -530,22 +526,21 @@ export const _ = {
             paths = paths.split('.');
 
         let temp = src;
-        for (let key of paths.slice(0, -1))
-        {
+        for (let key of paths.slice(0, -1)) {
             if (!temp.hasOwnProperty(key))
                 temp[key] = {};
 
             temp = temp[key];
         }
-        temp[paths[paths.length-1]] = value;
+        temp[paths[paths.length - 1]] = value;
     },
-    pick: function(src, props){
+    pick: function (src, props) {
         if (typeof props == 'string')
             props = qw(props);
         if (!Array.isArray(props) || !props.length)
             return {};
         let result = {};
-        props.forEach(key=>{
+        props.forEach(key => {
             let value = _.get(src, key);
             _.set(result, value, key);
         });
@@ -759,6 +754,21 @@ export function debounce(func, mls) {
     };
 }
 
+/**
+ * Return value between min and max value
+ * @param min {any} min value (including)
+ * @param val {any} value
+ * @param max {any} - max value (including)
+ * @returns {any}
+ */
+export function clamp(min, val, max) {
+    if (min > val)
+        return min;
+    if (max < val)
+        return max;
+    return val;
+}
+
 export class Awaiter {
     #promise;
     #resolve;
@@ -789,13 +799,14 @@ export class Awaiter {
                 clearTimeout(timeout);
             }
         }
+
         if (Number.isInteger(mls) && mls > 0 && mls < Number.MAX_VALUE)
-            timeout = setTimeout(()=>reject(new Error('timeout')), [mls]);
+            timeout = setTimeout(() => reject(new Error('timeout')), [mls]);
 
         return wait_promise(this.#promise);
     }
 
-    resolve(val){
+    resolve(val) {
         this.dbg('resolving');
         this.#resolve(val);
         this.#install_promise();
@@ -810,7 +821,7 @@ export class Queue {
     }
 
     push(...items) {
-        items = items.filter(x=>!this.queue.includes(x));
+        items = items.filter(x => !this.queue.includes(x));
         this.queue.push(...items);
         this.#process_queue();
     }
@@ -824,18 +835,18 @@ export class Queue {
             try {
                 let first = this.queue[0];
                 const this_param = {
-                    finally: fn=>cleanup_fns.push(fn),
-                    catch: fn=>on_catch.push(fn),
-                    then: fn=>on_then.push(fn),
+                    finally: fn => cleanup_fns.push(fn),
+                    catch: fn => on_catch.push(fn),
+                    then: fn => on_then.push(fn),
                 };
                 await this._process_single_item.bind(this_param)(first);
-                await Promise.all(on_then.map(x=>x()).filter(x=>x.then));
+                await Promise.all(on_then.map(x => x()).filter(x => x.then));
                 this.queue.shift();
             } catch (e) {
                 console.error('Error during single item proceed:', e);
-                await Promise.all(on_catch.map(x=>x(e)).filter(x=>x.then));
+                await Promise.all(on_catch.map(x => x(e)).filter(x => x.then));
             } finally {
-                await Promise.all(cleanup_fns.map(x=>x()).filter(x=>x.then));
+                await Promise.all(cleanup_fns.map(x => x()).filter(x => x.then));
             }
         }
         this.processing = false;

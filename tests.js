@@ -13,7 +13,7 @@ import {
     join_mkfile,
     hash,
     safe_rm,
-    filehash, exec, Awaiter, debounce, Queue
+    filehash, exec, Awaiter, debounce, Queue, clamp
 } from './index.js';
 import os from "os";
 import fs from "fs";
@@ -77,28 +77,29 @@ describe('_.select_recursive', () => {
     ], x => x?.children, 4);
 });
 
-describe('_.assign', ()=>{
-   it('works', ()=>{
-      let source = {nested: {}};
-      _.assign(source, {nested: {link1: {url: '1234'}}});
-      deepStrictEqual(source.nested.link1.url, '1234');
+describe('_.assign', () => {
+    it('works', () => {
+        let source = {nested: {}};
+        _.assign(source, {nested: {link1: {url: '1234'}}});
+        deepStrictEqual(source.nested.link1.url, '1234');
 
-      _.assign(source, {nested: {link2: {url: '1234'}}});
-       deepStrictEqual(source.nested.link2.url, '1234');
+        _.assign(source, {nested: {link2: {url: '1234'}}});
+        deepStrictEqual(source.nested.link2.url, '1234');
 
-       _.assign(source, {nested: {link2: {url: '789'}}});
-       deepStrictEqual(source.nested.link2.url, '789');
-   });
+        _.assign(source, {nested: {link2: {url: '789'}}});
+        deepStrictEqual(source.nested.link2.url, '789');
+    });
 });
 
-it('_.get', ()=>{
+it('_.get', () => {
     let src = {
         p1: {
             p2: {
                 p3: {
-                    arr: [1,2,3],
+                    arr: [1, 2, 3],
                     bool: true,
-                    fn: ()=>{},
+                    fn: () => {
+                    },
                 }
             }
         }
@@ -108,19 +109,20 @@ it('_.get', ()=>{
     deepStrictEqual(_.get(src, 'p1.p2.p3.arr.0'), 1);
     deepStrictEqual(_.get(src, 'p1.p2.p3.p4'), undefined);
 });
-it('_.set', ()=>{
+it('_.set', () => {
     let src = {
         p1: {
             p2: {
                 p3: {
-                    arr: [1,2,3],
+                    arr: [1, 2, 3],
                     bool: true,
-                    fn: ()=>{},
+                    fn: () => {
+                    },
                 }
             }
         }
     };
-    let _it = (val, path)=>{
+    let _it = (val, path) => {
         _.set(src, val, path);
         deepStrictEqual(_.get(src, path), val);
     };
@@ -128,17 +130,17 @@ it('_.set', ()=>{
     _it(false, 'p1.p2.p3.bool');
     _it(false, 'p1.p2.p3.p4.bool');
 });
-it('_.pick', ()=>{
-   let src = {
-       a0: true,
-       a1: true,
-       a2: true,
-       a3: true,
-       a4: true,
-   };
-   deepStrictEqual(_.pick(src, 'a0'), {a0: true});
-   deepStrictEqual(_.pick(src, 'a0 a1'), {a0: true, a1: true});
-   deepStrictEqual(_.pick(src, ['a0', 'a1']), {a0: true, a1: true});
+it('_.pick', () => {
+    let src = {
+        a0: true,
+        a1: true,
+        a2: true,
+        a3: true,
+        a4: true,
+    };
+    deepStrictEqual(_.pick(src, 'a0'), {a0: true});
+    deepStrictEqual(_.pick(src, 'a0 a1'), {a0: true, a1: true});
+    deepStrictEqual(_.pick(src, ['a0', 'a1']), {a0: true, a1: true});
 });
 describe('arr_diff', () => {
     const _t = (name, left, right, {l, r, c}) => it(name, () => {
@@ -327,6 +329,26 @@ describe('hash', () => {
         }
     });
 });
+
+it('clamp', () => {
+    let _it = (min, val, max, exp, msg = undefined) => {
+        deepStrictEqual(exp, clamp(min, val, max), msg);
+    };
+    _it(0, 200, 100, 100);
+    _it(0, 100, 100, 100);
+    _it(0, 99, 100, 99);
+
+    _it(0, -1, 100, 0);
+    _it(-10, -1, 100, -1);
+    _it(-100, -50, -2, -50);
+
+    let it_date = (min, val, max, exp, msg = undefined)=>{
+        deepStrictEqual(new Date(exp), clamp(new Date(min), new Date(val), new Date(max)), msg);
+    };
+    it_date(0, new Date(), '1980', '1980');
+    it_date(0, 1, 2, 1);
+    it_date(0, new Date(), Number.MAX_VALUE, new Date());
+})
 describe('Settings', () => {
     let filepath;
     beforeEach(() => {
@@ -493,15 +515,15 @@ describe('debounce', () => {
 });
 
 if (0)
-describe('Queue', () => {
-    it('works', async () => {
-        let a = 0, queue = new Queue(async arg => {
-            await sleep(30);
-            console.log('Awaited', a);
-            a++;
+    describe('Queue', () => {
+        it('works', async () => {
+            let a = 0, queue = new Queue(async arg => {
+                await sleep(30);
+                console.log('Awaited', a);
+                a++;
+            });
+            queue.push(1, 1, 1);
+            await sleep(100);
+            deepStrictEqual(a, 3);
         });
-        queue.push(1, 1, 1);
-        await sleep(100);
-        deepStrictEqual(a, 3);
     });
-});
