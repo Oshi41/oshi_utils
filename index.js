@@ -207,7 +207,7 @@ export const confirm = async (q) => {
 export const join_mkdir = (...paths) => {
     let dir = path.resolve(...paths);
     if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir);
+        fs.mkdirSync(dir, {recursive: true});
     }
     return dir;
 };
