@@ -791,7 +791,7 @@ export function promisify(fn) {
         }
 
         try {
-            let res = await fn.bind(this_arg).call(...args);
+            let res = await fn.bind(this_arg)(...args);
             await call_hooks(after);
             return res;
         } catch (e) {
