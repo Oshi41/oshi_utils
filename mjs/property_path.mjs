@@ -115,21 +115,30 @@ export class PropertyPath {
      * @param {string | PropertyPath | (string | PropertyPath)[]} path - The string path (e.g., "user.address.city") or an existing `PropertyPath`.
      */
     constructor(path) {
-        // If path is already an instance of PropertyPath, copy its segments
-        if (path?.constructor === this.constructor) {
-            path = path.#segments;
+
+        /**
+         * Recursive segments parser
+         * @template T {string | PropertyPath | PathSegment}
+         * @param segments {T | T[]}
+         * @returns {PathSegment[]}
+         * @private
+         */
+        function _parse(segments) {
+            if (typeof segments == 'string') {
+                return segments.trim()
+                    .replaceAll(']', '') // Remove closing brackets
+                    .replaceAll('[', '.') // Convert array brackets to dot notation
+                    .split('.')
+                    .filter(x => !!x)
+                    .map(x => new PathSegment(x)); // Split into segments
+            }
+            if (segments instanceof PropertyPath) return [...segments.#segments];
+            if (segments instanceof PathSegment) return [segments];
+            if (Array.isArray(segments)) return segments.flatMap(x => _parse(x)).filter(x => !!x?.path);
+            return [];
         }
 
-        // Convert string path into array format
-        if (typeof path === 'string') {
-            path = path.trim()
-                .replaceAll(']', '') // Remove closing brackets
-                .replaceAll('[', '.') // Convert array brackets to dot notation
-                .split('.'); // Split into segments
-        }
-
-        // Store valid segments after filtering out empty ones
-        this.#segments = path.filter(x => !!x?.length).map(x => new PathSegment(x));
+        this.#segments = _parse(path);
     }
 
     /**
