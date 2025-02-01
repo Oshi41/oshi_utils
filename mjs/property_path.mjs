@@ -1,3 +1,16 @@
+const cache = new Map();
+
+function reuse(key) {
+    key = `${this.constructor.name}+${key}`;
+
+    const instance = cache.get(key);
+    if (!!instance)
+        return {has: true, instance};
+
+    cache.set(key, this);
+    return {has: false, instance: this};
+}
+
 /**
  * Represents a segment of a property path.
  * Used to navigate and manipulate nested object structures.
@@ -16,6 +29,9 @@ export class PathSegment {
             type = 'function';
             path = path.slice(0, -2); // Remove the `()` from the path
         }
+
+        const reused = reuse.call(this, `${path}+${type}`);
+        if (reused.has) return reused.instance;
 
         this.path = path; // Store the cleaned-up path string
         this.type = type; // Store the type of the property (object, array, or function)
@@ -139,6 +155,9 @@ export class PropertyPath {
         }
 
         this.#segments = _parse(path);
+
+        const reused = reuse.call(this, this.toString());
+        if (reused.has) return reused.instance;
     }
 
     /**
