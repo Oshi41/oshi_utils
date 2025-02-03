@@ -1,7 +1,8 @@
 import {PropertyPath} from './property_path.mjs';
 
-// Cache for proxies to avoid redundant wrapping of the same object.
-const proxyCache = new WeakMap();
+// region Private methods
+
+const history = Symbol('history');
 
 /**
  * Checks whether a given value is a reference type (object or array).
@@ -36,160 +37,263 @@ function check_for_frozen_objects(obj, visited = new WeakSet()) {
     }
 }
 
-/**
- * Creates a reactive proxy that watches changes in an object.
- *
- * @fires create_proxy#change
- * @fires create_proxy#delete
- * @fires create_proxy#notify
- *
- * @template T
- * @param {T} obj - The object to wrap in a proxy.
- * @param {PropertyPath} path - The property path leading to this object.
- * @returns {Proxy<T>} - The reactive proxy of the object.
- */
-function create_proxy(obj, path) {
-    // Return an existing proxy from cache if available
-    let proxy = proxyCache.get(obj);
-    if (proxy) return proxy;
+// endregion
 
-    // If the object is a primitive value, return it as-is
-    if (!is_ref_type(obj)) return obj;
-
-    // Ensure the object and its children are not frozen
-    check_for_frozen_objects(obj);
-
+class ReactiveState extends EventTarget {
+    #proxyCache = new WeakMap();
+    #subscription = {
+        change: new EventTarget(),
+        /*** @type {Map<PropertyPath, Set<function>>}*/
+        notify: new Map(),
+    };
     /**
-     * Event management for the reactive proxy
-     * @type {EventTarget & {status: 'active' | 'blocked' | 'queued', queue: Function[]}}
+     * @type {Set<PropertyPath>}
      */
-    const events = Object.assign(new EventTarget(), {status: 'active', queue: []});
+    #notify_queue = new Set();
+    #timer = 0;
+    #debounce = 100;
+
+    constructor(src, {debounce = 100} = {}) {
+        super();
+        this.#debounce = debounce;
+        this.state = this.#create_proxy(src, new PropertyPath(''));
+        this.#on_batch_update();
+    }
+
+    // region Events
+
 
     /**
-     * Raises an event and optionally executes a callback if the event is not blocked.
      *
-     * @template T
-     * @param {T} e - The event object to dispatch.
-     * @param {function(e: T): void} [continue_with] - Optional callback executed if the event is not blocked.
-     * @returns {boolean} - True if the event was successfully dispatched, false otherwise.
+     * @param type {'change' | 'notify'}
+     * @return {PropertyPath[]}
      */
-    function raise(e, continue_with) {
-        switch (events.status) {
-            case "queued":
-                // If events are queued, store the event for later execution
-                events.queue.push(() => raise(e, continue_with));
-                return false;
+    #listening_props(type) {
+        const set = this.#subscription[type]?.[history];
+        if (!set?.size) return [];
 
-            case "blocked":
-                // If blocked, directly call the callback if provided
-                continue_with?.(e);
-                return true;
+        return [...set];
+    }
 
-            case "active":
-                // Dispatch the event and call the callback if not canceled
-                if (!events.dispatchEvent(e)) return false;
-                continue_with?.(e);
-                return true;
+    /**
+     * Delivers batch of pending notify events
+     */
+    #on_batch_update() {
+        clearTimeout(this.#timer);
 
-            default:
-                console.warn('Unknown events status');
-                return false;
+        const copy = Array.from(this.#notify_queue);
+        this.#notify_queue.clear()
+
+        for (let prop_path of copy) {
+            const set = this.#subscription.notify.get(prop_path.toString());
+            if (set?.size) {
+                for (let fn of set) {
+                    try {
+                        fn(prop_path);
+                    } catch (e) {
+                        console.error(`[ReactiveState] Observer error for ${prop_path}:`, e);
+                    }
+                }
+            }
+        }
+
+        if (this.#debounce > 0)
+            this.#timer = setTimeout(this.#on_batch_update.bind(this), this.#debounce);
+    }
+
+    /**
+     * Checks if subtree need to be notified
+     *
+     * @param path {PropertyPath} - full path to property
+     * @param old
+     * @param current {any} - updated value
+     */
+    #diff_and_notify(path, old, current) {
+        for (let key of this.#listening_props('notify').filter(x => path.affects(x))) {
+            const old_value = key.resolve(old);
+            const current_value = key.relative(path)?.resolve?.(current);
+            if (old_value !== current_value) {
+                this.#notify_queue.add(key);
+            }
+        }
+
+        // works instantly
+        if (this.#debounce <= 0)
+            this.#on_batch_update();
+    }
+
+    /**
+     *
+     * @param event {Event & {unset, current}}
+     * @param target {any}
+     * @param prop {string}
+     * @param fullpath {PropertyPath}
+     */
+    #apply_change_event(event, target, prop, fullpath) {
+        if (event.cancelable && event.defaultPrevented || !target) return false;
+
+        if (!(prop in target)) return false;
+
+        if (!event.unset && target[prop] !== event.current) {
+            const old = target[prop];
+            target[prop] = event.current;
+            this.#diff_and_notify(fullpath, old, event.current);
+            return true;
+        }
+
+        if (!event.unset && Array.isArray(target) && target[prop] !== undefined) {
+            const old = target[prop];
+            target[prop] = undefined;
+            this.#diff_and_notify(fullpath, old, undefined);
+            return true;
+        }
+
+        if (!event.unset && prop in target) {
+            const old = target[prop];
+            delete target[prop];
+            this.#diff_and_notify(fullpath, old, undefined);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Observe for the property path changed
+     *
+     * @param type {'change' | 'notify'} which event will listen
+     * @param property_path {PropertyPath} path to property
+     * @param callback {Function} - callback
+     * @returns {boolean} true if was subscribed
+     */
+    observe(type, property_path, callback) {
+        property_path = new PropertyPath(property_path);
+        const id = property_path.toString();
+        const event_by_type = this.#subscription[type];
+
+        function save_history() {
+            (event_by_type[history] ??= new Set()).add(property_path);
+            return true;
+        }
+
+        if (event_by_type instanceof EventTarget) {
+            event_by_type.removeEventListener(id, callback);
+            event_by_type.addEventListener(id, callback);
+
+            return save_history();
+        }
+
+        if (event_by_type instanceof Map) {
+            if (!event_by_type.has(id))
+                event_by_type.set(id, new Set());
+
+            const set = event_by_type.get(id);
+            set.add(callback);
+            return save_history();
+        }
+
+        return false;
+    }
+
+    // endregion
+
+    // region Proxy
+
+    #create_proxy(obj, path_from_root) {
+        if (!is_ref_type(obj)) return obj;
+        if (this.#proxyCache.has(obj)) return this.#proxyCache.get(obj);
+        check_for_frozen_objects(obj);
+
+        const proxy = new Proxy(obj, {
+            get: this.#create_proxy_getter(path_from_root),
+            set: this.#create_proxy_setter(path_from_root),
+            deleteProperty: this.#create_proxy_delete(path_from_root),
+        });
+        this.#proxyCache.set(obj, proxy);
+        return proxy;
+    }
+
+    /**
+     * Intercepts property access and ensures the returned value is also reactive
+     * @param root_path {PropertyPath} path from root to this object
+     * @returns {ProxyHandler.get}
+     */
+    #create_proxy_getter(root_path) {
+        const self = this;
+        return function _getter(target, prop, receiver) {
+            // Special marker to identify proxies
+            if (prop === '__isProxy') return true;
+            const value = target[prop];
+            // Wrap the value in a proxy if needed
+            return self.#create_proxy(value, new PropertyPath([root_path, prop]));
         }
     }
 
     /**
-     * Notifies about changes in the object tree.
-     * Currently, this function is empty, but should ideally dispatch an event.
+     * Intercepts property modifications, raises a change event, and updates the object
      *
-     * @event create_proxy#notify
-     * @param {PropertyPath} path - The path where the change occurred.
+     * @param root_path {PropertyPath}
+     * @returns {ProxyHandler.deleteProperty}
      */
-    function notify(path) {
-        // TODO: Implement notification logic
+    #create_proxy_setter(root_path) {
+        const self = this;
+        return function _setter(target, prop, value) {
+            // Construct full property path
+            const prop_path = new PropertyPath([root_path, prop]);
+            // Store old value for event comparison
+            const old_value = target[prop];
+            if (value === old_value) return true;
+
+            const event = Object.assign(
+                new Event(prop_path.toString(), {bubbles: true, cancelable: true}),
+                {path: prop_path, old: old_value, current: value, unset: false},
+            );
+
+            if (self.#subscription.change.dispatchEvent(event)) {
+                self.#apply_change_event(event, target, prop, prop_path);
+
+            }
+
+            // Proxy traps must return true for successful operation
+            return true;
+        }
     }
 
-    // Create the proxy
-    proxy = new Proxy(obj, {
-        /**
-         * Intercepts property access and ensures the returned value is also reactive.
-         *
-         * @param {object} target - The original object.
-         * @param {string | symbol} prop - The property being accessed.
-         * @returns {any} - The property value, wrapped in a proxy if necessary.
-         */
-        get(target, prop) {
-            if (prop === '__isProxy') return true; // Special marker to identify proxies
-            const value = target[prop];
-            return create_proxy(value, new PropertyPath([path, prop])); // Wrap the value in a proxy if needed
-        },
-
-        /**
-         * Intercepts property modifications, raises a change event, and updates the object.
-         *
-         * @param {object} target - The original object.
-         * @param {string | symbol} prop - The property being modified.
-         * @param {any} value - The new value to be set.
-         * @returns {boolean} - Always true to indicate success.
-         */
-        set(target, prop, value) {
-            const prop_path = new PropertyPath([path, prop]); // Construct full property path
-            const old_value = target[prop]; // Store old value for event comparison
-
-            /**
-             * Fires an event before changing the property.
-             *
-             * @event create_proxy#change
-             * @type {Event & {path: PropertyPath, old: any, value: any}}
-             */
-            raise(Object.assign(
-                new Event('change', {bubbles: true, cancelable: true}),
-                {path: prop_path, old: old_value, value}
-            ), function _after_change(e) {
-                // Ensure the new value is also reactive
-                target[prop] = create_proxy(e.value, prop_path);
-                notify(prop_path);
-            });
-
-            return true; // Proxy traps must return true for successful operation
-        },
-
-        /**
-         * Intercepts property deletion, raises a delete event, and removes the property.
-         *
-         * @param {object} target - The original object.
-         * @param {string | symbol} prop - The property to be deleted.
-         * @returns {boolean} - True if deletion was successful, false otherwise.
-         */
-        deleteProperty(target, prop) {
-            const prop_path = new PropertyPath([path, prop]);
+    /**
+     * Intercepts property deletion, raises a delete event, and removes the property.
+     *
+     * @param root_path {PropertyPath}
+     * @returns {ProxyHandler.deleteProperty}
+     */
+    #create_proxy_delete(root_path) {
+        const self = this;
+        return function _delete_property(target, prop) {
+            const prop_path = new PropertyPath([root_path, prop]);
             if (!(prop in target)) return false; // Return false if the property doesn't exist
 
-            /**
-             * Fires an event before deleting a property.
-             *
-             * @event create_proxy#delete
-             * @type {Event & {path: PropertyPath, value: any}}
-             */
-            raise(Object.assign(
-                new Event('delete', {bubbles: true, cancelable: true}),
-                {path: prop_path, value: target[prop]}
-            ), function after_delete_confirmed() {
-                // Mimic JavaScript behavior for array deletions
-                if (Array.isArray(target)) {
-                    target[prop] = undefined; // Leave an undefined slot in arrays
-                } else {
-                    delete target[prop]; // Remove property from objects
-                }
-                notify(prop_path);
-            });
+            const event = Object.assign(
+                new Event(prop_path.toString(), {bubbles: true, cancelable: true}),
+                {path: prop_path, current: target[prop], unset: true},
+            );
+
+            if (self.#subscription.change.dispatchEvent(event)) {
+                self.#apply_change_event(event, target, prop, prop_path);
+            }
 
             return true;
-        },
-    });
+        }
+    }
 
-    // Cache the proxy to prevent redundant wrapping
-    proxyCache.set(obj, proxy);
-    return proxy;
+    // endregion
 }
 
-export {create_proxy as r};
+/**
+ * Creates reactive state
+ *
+ * @param src {Object} state initial source
+ * @param debounce {number} batch delivery of notify to prevent over flooding
+ * @returns {ReactiveState}
+ */
+export function r(src, {debounce = 0} = {}) {
+    return new ReactiveState(src, {debounce});
+}

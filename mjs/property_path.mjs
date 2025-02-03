@@ -225,4 +225,44 @@ export class PropertyPath {
 
         return this.#segments.every((value, index) => value.path === other.#segments[index].path);
     }
+
+    /**
+     * Returns a new PropertyPath representing the relative path from the given base.
+     *
+     * For example, if the current path is "user.name.profile.meta" and the base is "user.name",
+     * then the relative path will be "profile.meta". This allows resolving the child property
+     * starting from a context resolved by the base.
+     *
+     * @param {string | PropertyPath} base - The base property path to compute the relative path from.
+     * @returns {PropertyPath} - A new PropertyPath representing the relative path.
+     * @throws {Error} - If the base path is not a prefix of the current path.
+     */
+    relative(base) {
+        // Ensure the base is a PropertyPath instance.
+        if (!(base instanceof PropertyPath)) {
+            base = new PropertyPath(base);
+        }
+
+        // Check that base is a prefix of the current path.
+        if (base.#segments.length > this.#segments.length) {
+            console.error('Base path is longer than the current path; cannot compute relative path.');
+            return false;
+        }
+        for (let i = 0; i < base.#segments.length; i++) {
+            if (this.#segments[i].path !== base.#segments[i].path) {
+                console.error('The provided base path is not a prefix of the current path.');
+                return false;
+            }
+        }
+
+        // Compute the new segments that form the relative path.
+        const newSegments = this.#segments.slice(base.#segments.length);
+
+        // Create a new instance of PropertyPath. We call the constructor with an empty string
+        // so that it starts with an empty segments array, then override the private #segments.
+        const relativePath = new PropertyPath('');
+        relativePath.#segments = newSegments;
+        return relativePath;
+    }
+
 }

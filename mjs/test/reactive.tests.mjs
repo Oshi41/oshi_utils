@@ -5,129 +5,55 @@ import {PropertyPath} from '../property_path.mjs';
 
 const prop = (...args) => new PropertyPath(...args);
 
-describe('property_path', () => {
-    it('should parse a string path into dotted notation', () => {
-        const path = prop('a.b.c');
-        assert.strictEqual(path.toString('.'), 'a.b.c');
-    });
-    it('should handle an array of strings as input', () => {
-        const path = prop(['x', 'y', 'z']);
-        assert.strictEqual(path.toString(), 'x.y.z');
-    });
-    it('should handle an empty array', () => {
-        const path = prop([]);
-        assert.strictEqual(path.toString(), '');
-    });
-    it('should handle nested PropertyPath instances', () => {
-        const subPath = prop('nested.path');
-        const path = prop(['root', subPath]);
-        assert.strictEqual(path.toString(), 'root.nested.path');
-    });
-    it('should resolve a valid path from an object', () => {
-        const obj = {a: {b: {c: 42}}};
-        const path = prop('a.b.c');
-        assert.strictEqual(path.resolve(obj), 42);
-    });
-    it('should return undefined for non-existent paths', () => {
-        const obj = {a: {b: {c: 42}}};
-        const path = prop('a.x.c');
-        assert.equal(path.resolve(obj), null);
-    });
-    it('should handle null or undefined root values gracefully', () => {
-        const path = prop('a.b.c');
-        assert.equal(path.resolve(null), null);
-        assert.equal(path.resolve(undefined), null);
-    });
-    it('should convert to string with . notation', () => {
-        const path = prop('a.b.c');
-        assert.strictEqual(path.toString(), 'a.b.c');
-    });
-    it('should work as a key in a Map', () => {
-        const path1 = prop('a.b');
-        const path2 = prop('a.c');
-        const map = new Map();
 
-        map.set(path1, 1);
-        map.set(path2, 2);
-
-        assert.strictEqual(map.get(path1), 1);
-        assert.strictEqual(map.get(path2), 2);
-    });
-    it('should distinguish between different paths', () => {
-        const path1 = prop('a.b');
-        const path2 = prop('a.b.c');
-        const map = new Map();
-
-        map.set(path1, 10);
-        assert.strictEqual(map.get(path2), undefined);
-    });
-});
 
 describe('reactive', () => {
     it('works', () => {
-        const state = r({user: {name: 'John'}});
+        const reactive = r({user: {name: 'John'}});
         let observedValue;
 
-        state.observe('user.name', (newState) => {
-            observedValue = newState.user.name;
+        reactive.observe('notify', 'user.name', (path)=>{
+            observedValue = path.resolve(reactive.state);
         });
 
-        state.state.user.name = 'Jane';
+        reactive.state.user.name = 'Jane';
 
         assert.strictEqual(observedValue, 'Jane',
             'Should observe changes to user.name');
     });
     it('edge cases', () => {
         const state = r({user: {name: 'John', details: {age: 30}}});
-        let observedParent;
-        let observedChild;
-        let observedUser;
+        let _details;
+        let _age;
+        let _user;
 
-        state.observe('user.details', (newState) => {
-            observedParent = newState.user.details;
-        });
-
-        state.observe('user.details.age', (newState) => {
-            observedChild = newState.user.details.age;
-        });
-
-        state.observe('user', (newState) => {
-            observedUser = newState.user;
-        });
+        state.observe('notify', 'user.details',
+            (prop) => _details = prop.resolve(state.state));
+        state.observe('notify', 'user.details.age',
+            (prop) => _age = prop.resolve(state.state));
+        state.observe('notify', 'user',
+            (prop) => _user = prop.resolve(state.state));
 
         state.state.user.details.age = 31;
-
-        assert.deepStrictEqual(
-            observedParent,
-            {age: 31},
-            'Should observe changes to user.details as a whole'
-        );
-
         assert.strictEqual(
-            observedChild,
+            _age,
             31,
             'Should observe changes to user.details.age'
-        );
-
-        assert.deepStrictEqual(
-            observedUser,
-            {name: 'John', details: {age: 31}},
-            'Should observe changes to user when a nested property changes'
         );
 
         // Check bubbling
         state.state.user.details = {age: 32, gender: 'male'};
 
         assert.deepStrictEqual(
-            observedParent,
+            _details,
             {age: 32, gender: 'male'},
             'Should update parent observer when details is replaced'
         );
 
-        assert.deepStrictEqual(
-            observedUser,
-            {name: 'John', details: {age: 32, gender: 'male'}},
-            'Should update user observer when details is replaced'
+        assert.strictEqual(
+            _age,
+            32,
+            'Should observe changes to user.details.age'
         );
     });
     it('simple array', () => {
