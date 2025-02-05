@@ -148,6 +148,21 @@ describe('property_path', () => {
 
         assert.strictEqual(l, r, 'should be the same instances');
     });
+
+    if (0)
+    it('should handle related path', () => {
+        const base = new prop('a.b.c[1]');
+        const expected = [
+            ['^', 'a.b.c'],
+            ['^.d', 'a.b.d'],
+            ['^.^', 'a.b'],
+            ['^.^.c[1]', 'a.b.c[1]'],
+        ];
+        for (let [rel, source] of expected) {
+            const relative = base.join(rel);
+            relative.resolve({}); // attempt to resolve
+            const expected = new prop(source);
+            assert.strictEqual(rel, expected);
+        }
+    });
 });
-
-

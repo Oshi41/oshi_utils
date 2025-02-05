@@ -2,7 +2,23 @@ import {PropertyPath} from './property_path.mjs';
 
 // region Private methods
 
-const history = Symbol('history');
+/**
+ * Map with intercepting functions. All of them mutates object.
+ * value is a value in case of cancelled event
+ *
+ * @type {Map<Function, function>}
+ */
+const intercepting = new Map([
+    [Array.prototype.push, () => 0],
+    [Array.prototype.pop, () => undefined],
+    [Array.prototype.shift, () => undefined],
+    [Array.prototype.unshift, x => x?.length || 0],
+    [Array.prototype.splice, () => []],
+    [Array.prototype.sort, arr => arr],
+    [Array.prototype.reverse, arr => arr],
+    [Array.prototype.copyWithin, arr => arr],
+    [Array.prototype.fill, arr => arr],
+]);
 
 /**
  * Checks whether a given value is a reference type (object or array).
@@ -10,7 +26,34 @@ const history = Symbol('history');
  * @returns {boolean} - True if the value is an object or array, false otherwise.
  */
 function is_ref_type(obj) {
-    return obj != null && (Array.isArray(obj) || typeof obj === 'object');
+    if (obj == null) return false;
+    return Array.isArray(obj) || ['function', 'object'].includes(typeof obj);
+}
+
+/**
+ *
+ * @param obj {any}
+ * @param prop_path {PropertyPath}
+ * @param visited {WeakSet<any>}
+ * @returns {Generator<[any, PropertyPath], *, *>}
+ */
+function* obj_iterate(obj, prop_path = new PropertyPath(''), visited = new WeakSet()) {
+    if (visited.has(obj)) return;
+
+    yield [obj, prop_path];
+    if (!is_ref_type(obj)) return;
+
+    visited.add(obj);
+
+    for (let key of new Set([
+        ...Object.keys(obj),
+        ...Object.getOwnPropertyNames(obj),
+        ...Object.getOwnPropertySymbols(obj),
+    ])) {
+        for (let ret of obj_iterate(obj[key], prop_path.join(key), visited)) {
+            yield ret;
+        }
+    }
 }
 
 /**
@@ -18,74 +61,88 @@ function is_ref_type(obj) {
  * Throws an error if a frozen object is found, since reactivity requires mutability.
  *
  * @param {object} obj - The object to check.
- * @param {WeakSet<object>} visited - A set of visited objects to avoid infinite recursion.
  */
-function check_for_frozen_objects(obj, visited = new WeakSet()) {
-    if (!is_ref_type(obj) || visited.has(obj)) return; // Skip non-objects and already visited objects
-
-    visited.add(obj);
-
-    if (Object.isFrozen(obj)) {
-        throw new Error('ReactiveState does not support frozen objects or objects with frozen children.');
-    }
-
-    // Recursively check all own properties
-    for (const key in obj) {
-        if (Object.prototype.hasOwnProperty.call(obj, key)) {
-            check_for_frozen_objects(obj[key], visited);
-        }
+function check_for_frozen_objects(obj) {
+    for (let [elem] of obj_iterate(obj)) {
+        if (is_ref_type(elem) && Object.isFrozen(elem))
+            throw new Error('ReactiveState does not support frozen objects or objects with frozen children.');
     }
 }
 
 // endregion
 
-class ReactiveState extends EventTarget {
-    #proxyCache = new WeakMap();
+class ReactiveState {
+    #proxy_cache = new WeakMap();
     #subscription = {
         change: new EventTarget(),
-        /*** @type {Map<PropertyPath, Set<function>>}*/
+        call: new EventTarget(),
         notify: new Map(),
     };
-    /**
-     * @type {Set<PropertyPath>}
-     */
     #notify_queue = new Set();
     #timer = 0;
     #debounce = 100;
 
     constructor(src, {debounce = 100} = {}) {
-        super();
         this.#debounce = debounce;
         this.state = this.#create_proxy(src, new PropertyPath(''));
-        this.#on_batch_update();
+        this.#send_notify_batch();
     }
 
-    // region Events
-
+    // region event helping
 
     /**
-     *
-     * @param type {'change' | 'notify'}
-     * @return {PropertyPath[]}
+     * Equals function. By default using '==='
+     * @param path {PropertyPath} path from root to current property
+     * @param left {any}
+     * @param right {any}
+     * @returns {boolean}
      */
-    #listening_props(type) {
-        const set = this.#subscription[type]?.[history];
-        if (!set?.size) return [];
+    #is_equal(path, left, right) {
+        return left === right;
+    }
 
-        return [...set];
+    /**
+     * @param type {'change' | 'notify' | 'call'}
+     * @param id {PropertyPath}
+     * @return {boolean}
+     */
+    #has_listener(type, id) {
+        const source = this.#subscription[type];
+        if (source instanceof Map) return source.has(id);
+        if (source?._keys instanceof Set) return source._keys.has(id);
+        return false;
+    }
+
+    // endregion
+
+    // region notify event
+
+    /**
+     * Signal that property was changed. Will schedule batch update later.
+     * @param props {PropertyPath} - path from root to property
+     * @returns {number}
+     */
+    notify_property_changed(...props) {
+        try {
+            return props.filter(x => this.#subscription.notify.has(x))
+                .map(x => this.#notify_queue.add(x))
+                .length;
+        } finally {
+            if (this.#debounce <= 0) this.#send_notify_batch();
+        }
     }
 
     /**
      * Delivers batch of pending notify events
      */
-    #on_batch_update() {
+    #send_notify_batch() {
         clearTimeout(this.#timer);
 
         const copy = Array.from(this.#notify_queue);
         this.#notify_queue.clear()
 
         for (let prop_path of copy) {
-            const set = this.#subscription.notify.get(prop_path.toString());
+            const set = this.#subscription.notify.get(prop_path);
             if (set?.size) {
                 for (let fn of set) {
                     try {
@@ -98,98 +155,195 @@ class ReactiveState extends EventTarget {
         }
 
         if (this.#debounce > 0)
-            this.#timer = setTimeout(this.#on_batch_update.bind(this), this.#debounce);
+            this.#timer = setTimeout(this.#send_notify_batch.bind(this), this.#debounce);
     }
 
     /**
-     * Checks if subtree need to be notified
+     * Returns all possible changes within object
      *
-     * @param path {PropertyPath} - full path to property
-     * @param old
-     * @param current {any} - updated value
+     * @param path {PropertyPath} path to current proeprties
+     * @param old {any} - old value
+     * @param current {any} - current value
+     * @param visited - list of visited proeprties
+     * @returns {Generator<[PropertyPath, any, any], void, *>}
      */
-    #diff_and_notify(path, old, current) {
-        for (let key of this.#listening_props('notify').filter(x => path.affects(x))) {
-            const old_value = key.resolve(old);
-            const current_value = key.relative(path)?.resolve?.(current);
-            if (old_value !== current_value) {
-                this.#notify_queue.add(key);
+    * children_diff(path, old, current, visited = new WeakSet()) {
+        if (visited.has(path)) return;
+
+        for (let [left, right] of [[old, current], [old, current].reverse()]) {
+            if (left == null) continue;
+
+            for (let [elem, relative_prop] of obj_iterate(left)) {
+                const absolute = new PropertyPath([path, relative_prop]);
+                if (visited.has(absolute)) continue;
+
+                visited.add(absolute);
+                const r_elem = relative_prop.resolve(right);
+                if (!this.#is_equal(absolute, elem, r_elem))
+                    yield [absolute, elem, r_elem];
+            }
+        }
+    }
+
+    // endregion
+
+    // region change event
+
+    /**
+     *
+     * @param root_path {PropertyPath} path pointing on target (not on the prop!)
+     * @param target {any} - direct property owner
+     * @param prop {string} - property name
+     * @param current {any}  - value we want to set
+     * @param unset {boolean} - should unset property?
+     * @returns {*|boolean}
+     */
+    #raise_change_event(root_path, target, prop, current, unset) {
+        // reference to compare function
+        const self = this;
+        const old = target?.[prop];
+
+        const full_path = root_path.join(prop);
+
+        // value was not actually change
+        if (self.#is_equal(full_path, old, current)) return false;
+
+        const event = Object.assign(
+            new Event(full_path.toString(), {bubbles: true, cancelable: true}),
+            {
+                get old() {
+                    return old;
+                },
+                get path() {
+                    return full_path;
+                },
+                current,
+                unset,
+            });
+
+        function apply_changes() {
+            // handle delete for arrays as JS do
+            if (event.unset && prop in target && Array.isArray(target)) {
+                target[prop] = undefined;
+                return full_path;
+            }
+
+            // handle delete for any other objects
+            if (event.unset && prop in target && !Array.isArray(target)) {
+                delete target[prop];
+                return full_path;
+            }
+
+            // set updated value
+            if (!event.unset && !self.#is_equal(full_path, event.old, event.current)) {
+                target[prop] = event.current;
+                return full_path;
             }
         }
 
-        // works instantly
-        if (this.#debounce <= 0)
-            this.#on_batch_update();
+        // cancel event
+        if (!this.#subscription.change.dispatchEvent(event)) return false;
+
+        // was it the meaningful changes?
+        if (!apply_changes()) return false;
+
+        // raise the change for parent and possible children changes
+        this.notify_property_changed(full_path, ...this.children_diff(full_path, old, event.current)
+            .map(x => x[0])
+            .filter(x => this.#has_listener('notify', x))
+            .toArray());
+
+        return true;
     }
+
+    // endregion
+
+    // region call event
 
     /**
+     * Intercept function
      *
-     * @param event {Event & {unset, current}}
-     * @param target {any}
-     * @param prop {string}
-     * @param fullpath {PropertyPath}
+     * @param path {PropertyPath} - property path from root to target (not function!)
+     * @param fn {function} - original function
+     * @param return_on_cancel {function(target: any, args: any[]): any} - return callback if cancelled call via event handling
+     * @param target {any} - thisArg
+     * @param args {any[]} - fn args
+     * @param is_mutating {boolean} - the function mutates target?
      */
-    #apply_change_event(event, target, prop, fullpath) {
-        if (event.cancelable && event.defaultPrevented || !target) return false;
+    #intercept(path, fn, return_on_cancel, target, args, is_mutating = false) {
+        const event = Object.assign(
+            new Event(path.toString(), {bubbles: true, cancelable: true}),
+            {
+                get path() {
+                    return path;
+                },
+                get fn() {
+                    return fn;
+                },
+                this_arg: target,
+                args: args
+            },
+        );
 
-        if (!(prop in target)) return false;
+        // return default value
+        if (!this.#subscription.call.dispatchEvent(event)) return return_on_cancel(target, args);
 
-        if (!event.unset && target[prop] !== event.current) {
-            const old = target[prop];
-            target[prop] = event.current;
-            this.#diff_and_notify(fullpath, old, event.current);
-            return true;
+        // shallow copy of object
+        const old = is_mutating
+            ? Array.isArray(target) && Array.from(target)
+            || typeof target == 'object' && Object.assign({}, target)
+            : null;
+
+        try {
+            Reflect.apply(fn, target, args);
+        } finally {
+            if (is_mutating) {
+                const calculated_changes = this.children_diff(path, old, target)
+                    .map(x => x[0])
+                    .toArray();
+
+                // any change mutate target, assume changes were made
+                if (calculated_changes.length)
+                    calculated_changes.push(path);
+
+                this.notify_property_changed(...calculated_changes);
+            }
         }
-
-        if (!event.unset && Array.isArray(target) && target[prop] !== undefined) {
-            const old = target[prop];
-            target[prop] = undefined;
-            this.#diff_and_notify(fullpath, old, undefined);
-            return true;
-        }
-
-        if (!event.unset && prop in target) {
-            const old = target[prop];
-            delete target[prop];
-            this.#diff_and_notify(fullpath, old, undefined);
-            return true;
-        }
-
-        return false;
     }
+
+    // endregion
+
+    // region Events
 
     /**
      * Observe for the property path changed
      *
-     * @param type {'change' | 'notify'} which event will listen
-     * @param property_path {PropertyPath} path to property
+     * @param type {'change' | 'notify' | 'call'} which event will listen
+     * @param id {PathParsable | PathParsable[]} path to property
      * @param callback {Function} - callback
      * @returns {boolean} true if was subscribed
      */
-    observe(type, property_path, callback) {
-        property_path = new PropertyPath(property_path);
-        const id = property_path.toString();
-        const event_by_type = this.#subscription[type];
+    observe(type, id, callback) {
+        if (!(id instanceof PropertyPath))
+            id = new PropertyPath(id);
 
-        function save_history() {
-            (event_by_type[history] ??= new Set()).add(property_path);
+        const source = this.#subscription[type];
+
+        if (source instanceof Map) {
+            if (!source.has(id)) source.set(id, new Set());
+            const set = source.get(id);
+            set.add(callback);
             return true;
         }
 
-        if (event_by_type instanceof EventTarget) {
-            event_by_type.removeEventListener(id, callback);
-            event_by_type.addEventListener(id, callback);
+        if (source instanceof EventTarget) {
+            const id_str = id.toString();
+            source.removeEventListener(id_str, callback);
+            source.addEventListener(id_str, callback);
 
-            return save_history();
-        }
-
-        if (event_by_type instanceof Map) {
-            if (!event_by_type.has(id))
-                event_by_type.set(id, new Set());
-
-            const set = event_by_type.get(id);
-            set.add(callback);
-            return save_history();
+            source._keys ??= new Set();
+            source._keys.add(id);
+            return true;
         }
 
         return false;
@@ -199,89 +353,66 @@ class ReactiveState extends EventTarget {
 
     // region Proxy
 
+    /**
+     *
+     * @param obj {any}
+     * @param path_from_root {PropertyPath}
+     * @returns {*|object}
+     */
     #create_proxy(obj, path_from_root) {
-        if (!is_ref_type(obj)) return obj;
-        if (this.#proxyCache.has(obj)) return this.#proxyCache.get(obj);
+        if (!is_ref_type(obj))
+            return obj;
+        if (this.#proxy_cache.has(obj))
+            return this.#proxy_cache.get(obj);
         check_for_frozen_objects(obj);
 
+        const self = this;
+
         const proxy = new Proxy(obj, {
-            get: this.#create_proxy_getter(path_from_root),
-            set: this.#create_proxy_setter(path_from_root),
-            deleteProperty: this.#create_proxy_delete(path_from_root),
+            get: function _getter(target, p) {
+                let value = target?.[p];
+                switch (p) {
+                    // special properties
+                    case '__isProxy':
+                        return true;
+                    case '__target':
+                        return target;
+
+                    // simple values returns 'as-is'
+                    case !is_ref_type(value):
+                        return value;
+
+                    // do not proxy functions, use apply trap instead
+                    case typeof value == 'function':
+                        return value;
+
+                    default:
+                        return self.#create_proxy(value, path_from_root.join(p));
+                }
+            },
+            set: function _set(target, p, value) {
+                self.#raise_change_event(path_from_root, target, p, value, false);
+                return true;
+            },
+            deleteProperty: function _deleteProperty(target, p) {
+                self.#raise_change_event(path_from_root, target, p, null, true);
+                return true;
+            },
+            apply: function (fn, thisArg, argArray) {
+                // can intercept this function
+                if (intercepting.has(fn)) {
+                    const actual_target = thisArg?.__isProxy && thisArg.__target || thisArg;
+                    // observe value from this state
+                    if (self.#proxy_cache.has(actual_target)) {
+                        return self.#intercept(path_from_root.parent(), fn, intercepting.get(fn), actual_target, argArray, true);
+                    }
+                }
+
+                return Reflect.apply(fn, thisArg, argArray);
+            }
         });
-        this.#proxyCache.set(obj, proxy);
+        this.#proxy_cache.set(obj, proxy);
         return proxy;
-    }
-
-    /**
-     * Intercepts property access and ensures the returned value is also reactive
-     * @param root_path {PropertyPath} path from root to this object
-     * @returns {ProxyHandler.get}
-     */
-    #create_proxy_getter(root_path) {
-        const self = this;
-        return function _getter(target, prop, receiver) {
-            // Special marker to identify proxies
-            if (prop === '__isProxy') return true;
-            const value = target[prop];
-            // Wrap the value in a proxy if needed
-            return self.#create_proxy(value, new PropertyPath([root_path, prop]));
-        }
-    }
-
-    /**
-     * Intercepts property modifications, raises a change event, and updates the object
-     *
-     * @param root_path {PropertyPath}
-     * @returns {ProxyHandler.deleteProperty}
-     */
-    #create_proxy_setter(root_path) {
-        const self = this;
-        return function _setter(target, prop, value) {
-            // Construct full property path
-            const prop_path = new PropertyPath([root_path, prop]);
-            // Store old value for event comparison
-            const old_value = target[prop];
-            if (value === old_value) return true;
-
-            const event = Object.assign(
-                new Event(prop_path.toString(), {bubbles: true, cancelable: true}),
-                {path: prop_path, old: old_value, current: value, unset: false},
-            );
-
-            if (self.#subscription.change.dispatchEvent(event)) {
-                self.#apply_change_event(event, target, prop, prop_path);
-
-            }
-
-            // Proxy traps must return true for successful operation
-            return true;
-        }
-    }
-
-    /**
-     * Intercepts property deletion, raises a delete event, and removes the property.
-     *
-     * @param root_path {PropertyPath}
-     * @returns {ProxyHandler.deleteProperty}
-     */
-    #create_proxy_delete(root_path) {
-        const self = this;
-        return function _delete_property(target, prop) {
-            const prop_path = new PropertyPath([root_path, prop]);
-            if (!(prop in target)) return false; // Return false if the property doesn't exist
-
-            const event = Object.assign(
-                new Event(prop_path.toString(), {bubbles: true, cancelable: true}),
-                {path: prop_path, current: target[prop], unset: true},
-            );
-
-            if (self.#subscription.change.dispatchEvent(event)) {
-                self.#apply_change_event(event, target, prop, prop_path);
-            }
-
-            return true;
-        }
     }
 
     // endregion

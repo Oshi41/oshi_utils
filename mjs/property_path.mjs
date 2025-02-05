@@ -1,3 +1,5 @@
+/*** @typedef {string | PathSegment | PropertyPath} PathParsable*/
+
 const cache = new Map();
 
 function reuse(key) {
@@ -128,7 +130,7 @@ export class PropertyPath {
     /**
      * Constructs a `PropertyPath` from a string or another `PropertyPath` instance.
      *
-     * @param {string | PropertyPath | (string | PropertyPath)[]} path - The string path (e.g., "user.address.city") or an existing `PropertyPath`.
+     * @param {PathParsable | PathParsable[]} path - The string path (e.g., "user.address.city") or an existing `PropertyPath`.
      */
     constructor(path) {
 
@@ -176,7 +178,7 @@ export class PropertyPath {
      * @returns {any} - The resolved value at the given path.
      */
     resolve(root) {
-        for (const item of this.#segments) {
+        for (const item of (this.#segments)) {
             root = is_primitive_or_null(root)
                 ? null
                 : item.get(root);
@@ -234,8 +236,7 @@ export class PropertyPath {
      * starting from a context resolved by the base.
      *
      * @param {string | PropertyPath} base - The base property path to compute the relative path from.
-     * @returns {PropertyPath} - A new PropertyPath representing the relative path.
-     * @throws {Error} - If the base path is not a prefix of the current path.
+     * @returns {PropertyPath | undefined} - A new PropertyPath representing the relative path.
      */
     relative(base) {
         // Ensure the base is a PropertyPath instance.
@@ -246,7 +247,7 @@ export class PropertyPath {
         // Check that base is a prefix of the current path.
         if (base.#segments.length > this.#segments.length) {
             console.error('Base path is longer than the current path; cannot compute relative path.');
-            return false;
+            return;
         }
         for (let i = 0; i < base.#segments.length; i++) {
             if (this.#segments[i].path !== base.#segments[i].path) {
@@ -265,4 +266,33 @@ export class PropertyPath {
         return relativePath;
     }
 
+    /**
+     * Returns parent of property
+     *
+     * @returns {PropertyPath}
+     */
+    parent(){
+        if (this.#segments.length < 1) return this;
+
+        return new PropertyPath(this.#segments.slice(0, -1));
+    }
+
+    /**
+     * Joins current path with provided
+     * @param path {PathParsable | PathParsable[]}
+     * @returns {PropertyPath}
+     */
+    join(path){
+        if (!(path instanceof PropertyPath)) {
+            path = new PropertyPath(path);
+        }
+
+        if (!path?.#segments?.length) return this;
+
+        return new PropertyPath([...this.#segments, ...path.#segments]);
+    }
+
+    last(){
+        return this.#segments[this.#segments.length - 1];
+    }
 }
