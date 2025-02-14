@@ -65,7 +65,20 @@ const currencies = {
     "VND": ["دونغ فيتنامي", "Vietnam Dong"],
     "YER": ["ريال يمني", "Yemen Rial"],
     "ZAR": ["راند جنوب أفريقي", "South Africa Rand"],
-    "ZMW": ["كواشا زامبي", "Zambian Kwacha"]
+    "ZMW": ["كواشا زامبي", "Zambian Kwacha"],
+    "CNH": ["يوان صيني - الخارج", "Chinese Yuan - Offshore"],
+    "AZN": ["مانات أذربيجاني", "Azerbaijani Manat"],
+    "BGN": ["ليف بلغاري", "Bulgarian Lev"],
+    "HRK": ["كونا كرواتية", "Croatian Kuna"],
+    "ETB": ["بر إثيوبي", "Ethiopian Birr"],
+    "IQD": ["دينار عراقي", "Iraqi Dinar"],
+    "ILS": ["شيكل اسرائيلي", "Israeli Shekel"],
+    "LYD": ["دينار ليبي", "Libyan Dinar"],
+    "MUR": ["روبي موريشي", "Mauritian Rupee"],
+    "RON": ["ليو روماني", "Romanian Leu"],
+    "SYP": ["ليرة سورية", "Syrian Pound"],
+    "TMT": ["منات تركمانستاني", "Turkmenistan Manat"],
+    "UZS": ["سوم أوزبكستاني", "Uzbekistani Som"],
 };
 const arabicData = {
     days: {
@@ -110,13 +123,20 @@ const arabicData = {
 };
 const currenciesMap = new Map(Object.entries(currencies).flatMap(([code, names]) => names.map(n => [n, code])));
 const dateReplaceStr = 'Last updated:';
+const dateFormat = Intl.DateTimeFormat('en-EN', {
+    weekday: 'short',
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+});
+const numRegex = /\d/g;
 
 /**
  * Log function for different environment
  * @type {false|(function(...[*]): void)|*}
  */
 const log = typeof Logger != 'undefined' &&
-    function _googleAppsScriptLog(...args) {
+    (function _googleAppsScriptLog(...args) {
         if (!args.length) return;
 
         if (args.length === 1) return
@@ -131,10 +151,10 @@ const log = typeof Logger != 'undefined' &&
             }, {});
 
         Logger.log(args);
-    }
-    ?? function _defaultLogging(...args) {
+    })
+    || (function _defaultLogging(...args) {
         console.log(...args);
-    };
+    });
 
 /**
  * Retrieves innerHTML for provided node name from provided HTML string (can be partial)
@@ -173,6 +193,18 @@ function parseArabicDate(arabicDateStr) {
     return new Date(arabicDateStr);
 }
 
+function getFullUrl(date) {
+    const url = new URL('https://www.centralbank.ae/umbraco/Surface/Exchange/GetExchangeRateAllCurrencyDate');
+    url.searchParams.set('dateTime', date.toLocaleDateString(dateFormat));
+
+    log('requesting URL', {
+        url: url.toString(),
+        date: url.searchParams.get('dateTime'),
+    });
+
+    return url.toString();
+}
+
 /**
  * Retrieves currency rates from Dubai Central Bank
  *
@@ -191,10 +223,15 @@ function parseArabicDate(arabicDateStr) {
 async function getCurrenciesFromUAE(date = new Date()) {
     const result = {};
     let html;
+    let r;
 
     try {
-        const r = await fetch(url + date.toDateString(), {
+        r = await fetch(getFullUrl(date), {
             method: 'GET',
+            headers: new Headers({
+                'Accept': 'text/html',
+                'Content-Language': 'en-US',
+            })
         });
         if (!r.ok) {
             throw new Error(`HTTP error! Status: ${r.status}`);
@@ -205,7 +242,7 @@ async function getCurrenciesFromUAE(date = new Date()) {
             return result;
         }
     } catch (e) {
-        log('Cannot get exchange rate :(', e);
+        log('Cannot get exchange rate :(', e, r.url);
         return result;
     }
 
@@ -228,14 +265,22 @@ async function getCurrenciesFromUAE(date = new Date()) {
     }
 
     for (let arr of cells) {
-        for (let str of arr) {
-            const f = parseFloat(str);
-            const code = currenciesMap.get(arr.find(item => item !== str));
-            if (!isNaN(f) && f > 0 && !!code) {
-                result[code] = f;
-                break;
-            }
+        const exchangeRate = numRegex.test(arr[0]) && arr[0]
+            || numRegex.test(arr[1]) && arr[1];
+        if (!exchangeRate) {
+            log('Invalid currency exchange rates: ', arr);
+            continue;
         }
+        const name = exchangeRate === arr[0]
+            ? arr[1]
+            : arr[0];
+        const code = currenciesMap.get(name);
+        if (!code) {
+            log('Unknown currency name: ', arr);
+            continue;
+        }
+
+        result[code] = parseFloat(exchangeRate);
     }
 
     log(`${Object.keys(result).length} currencies saved`);
