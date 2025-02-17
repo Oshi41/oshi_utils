@@ -43,8 +43,11 @@ const arabicData = {
 };
 const currencyNames = {
     "USD": ["دولار امريكي", "US Dollar"],
-    "ARS": ["بيسو ارجنتيني", "Argentine Peso"],
+    "EUR": ["يورو", "Euro"],
     "AED": ["United Arab Emirates dirham"],
+    "RSD": ["دينار صربي", "Serbian Dinar"],
+    "RUB": ["روبل روسي", "Russia Rouble"],
+    "ARS": ["بيسو ارجنتيني", "Argentine Peso"],
     "BAM": ["Bosnia and Herzegovina convertible mark"],
     "AUD": ["دولار استرالي", "Australian Dollar"],
     "BDT": ["تاكا بنغلاديشية", "Bangladesh Taka"],
@@ -62,7 +65,6 @@ const currencyNames = {
     "DKK": ["كرون دانماركي", "Danish Krone"],
     "DZD": ["دينار جزائري", "Algerian Dinar"],
     "EGP": ["جينيه مصري", "Egypt Pound"],
-    "EUR": ["يورو", "Euro"],
     "GBP": ["جنيه استرليني", "GB Pound"],
     "HKD": ["دولار هونج كونج", "Hongkong Dollar"],
     "HUF": ["فورنت هنغاري", "Hungarian Forint"],
@@ -90,8 +92,6 @@ const currencyNames = {
     "PKR": ["روبية باكستانية", "Pakistan Rupee"],
     "PLN": ["زلوتي بولندي", "Polish Zloty"],
     "QAR": ["ريال قطري", "Qatari Riyal"],
-    "RSD": ["دينار صربي", "Serbian Dinar"],
-    "RUB": ["روبل روسي", "Russia Rouble"],
     "SAR": ["ريال سعودي", "Saudi Riyal"],
     "SDG": ["دينار سوداني", "Sudanese Pound"],
     "SEK": ["كرونة سويدية", "Swedish Krona"],
@@ -121,7 +121,53 @@ const currencyNames = {
     "TMT": ["منات تركمانستاني", "Turkmenistan Manat"],
     "UZS": ["سوم أوزبكستاني", "Uzbekistani Som"],
 };
-const currenciesMap = new Map(Object.entries(currencyNames).flatMap(([code, names]) => names.map(n => [n, code])));
+const currenciesMap = new Map(Object.entries(currencyNames)
+    .flatMap(([code, names]) => names.map(n => [n, code])));
+const date_utils = (() => {
+    const mls = 1;
+    const sec = 1000 * mls;
+    const min = 60 * sec;
+    const hour = 60 * min;
+    const day = 24 * hour;
+    const week = 7 * day;
+
+
+    return {
+        absolute_intervals: {mls, sec, min, hour, day, week},
+        get_parts: d => ({
+            year: d.getFullYear(),
+            month: d.getMonth(),
+            day: d.getDate(),
+            hour: d.getHours(),
+            min: d.getMinutes(),
+            sec: d.getSeconds(),
+            mls: d.getMilliseconds(),
+        }),
+        from_parts: parts => new Date(
+            parts.year,
+            parts.month,
+            parts.day,
+            parts.hour,
+            parts.min,
+            parts.sec,
+            parts.mls,
+        ),
+    };
+})();
+
+/**
+ *
+ * @typedef {Object} TimeSpan
+ *
+ * @property {number} [mls]
+ * @property {number} [sec]
+ * @property {number} [min]
+ * @property {number} [hour]
+ * @property {number} [day]
+ * @property {number} [week]
+ * @property {number} [month]
+ * @property {number} [year]
+ */
 
 // endregion
 
@@ -169,7 +215,6 @@ const log = typeof Logger != 'undefined' &&
     || (function _defaultLogging(...args) {
         console.log(...args);
     });
-
 
 /**
  * Trying to parse arabic date
@@ -223,12 +268,12 @@ function* find_table(html, table_index = 0) {
                 // find currency code match (USD, RSD)
                 if (currencyNames.hasOwnProperty(cell.toUpperCase())) {
                     code = cell.toUpperCase();
-                // find by currency name (US Dollar)
+                    // find by currency name (US Dollar)
                 } else if (currenciesMap.has(cell)) {
                     code = currenciesMap.get(cell);
                 }
-            // find number
-            } else if (numReg.test(cell)){
+                // find number
+            } else if (numReg.test(cell)) {
                 cells[i] = parseFloat(cell.replaceAll(',', '.'));
             }
         }
@@ -240,6 +285,130 @@ function* find_table(html, table_index = 0) {
 
         yield ({tr, cells, code});
     }
+}
+
+/**
+ * Add timespan interval to date
+ *
+ * @param date {Date | number}
+ * @param timespan {TimeSpan}
+ */
+function add(date, timespan = {}) {
+    if (date instanceof Date)
+        date = date.valueOf();
+
+    // validating timespan
+    if (Math.abs(timespan.month) >= 12) {
+        if (!timespan.year)
+            timespan.year = 0;
+        timespan.year += Math.floor(timespan.month / 12);
+        timespan.month %= 12;
+    }
+
+    // increase absolute intervals
+    for (let [part, amount] of Object.entries(date_utils.absolute_intervals).filter(x => timespan.hasOwnProperty(x[0]))) {
+        date += timespan[part] * amount;
+        delete timespan[part];
+    }
+
+    const parts = date_utils.get_parts(new Date(date));
+
+    // calculate months offset
+    if (timespan.month) {
+        parts.month += timespan.month;
+        delete timespan.month;
+
+        if (parts.month < 0 || parts.month >= 12) {
+            const sign = Math.sign(parts.month);
+            const addYears = Math.floor(Math.abs(parts.month) / 12);
+            parts.year += addYears * sign;
+            parts.month %= 12;
+        }
+    }
+    if (timespan.year) {
+        parts.year += timespan.year;
+        delete timespan.year;
+    }
+
+    return date_utils.from_parts(parts);
+}
+
+/**
+ * Retrieves exchange rate history_
+ *
+ * @param from {Date}
+ * @param to {Date}
+ * @param functions {Object<string, function(d: Date): Promise<any>>}
+ * @returns {Promise<Object<string, [Date, ...string][]>>}
+ */
+async function fill_range(from, to, functions) {
+    const map = new Map();
+
+    // assume it's 6 am
+    from = new Date(from.getFullYear(), from.getMonth(), from.getDate(), 6);
+    to = new Date(to.getFullYear(), to.getMonth(), to.getDate(), 6);
+
+    /*** @type {Promise[]}*/
+    const promises = [];
+    let executed = 0;
+
+    for (let _time = from; _time <= to; _time = add(_time, {day: 1})){
+        const per_day = {};
+        map.set(_time, per_day);
+
+        for (let [prop, func] of Object.entries(functions)) {
+            promises.push(async function(){
+                try {
+                    const data = await func(_time);
+                    if (!data)
+                        throw new Error('No data received');
+
+                    if (!data._time)
+                        data._time = _time;
+                    per_day[prop] = data;
+                } catch (error) {
+                    per_day[prop] = {_time, error};
+                }
+                finally {
+                    executed++;
+                    console.log(`[${executed}] / [${promises.length}]`);
+                }
+            }());
+        }
+    }
+    await Promise.all(promises);
+
+    const result = Object.keys(functions).reduce((p, key) => Object.assign(p, {[key]: []}), {})
+
+    // old -> fresh dates iteration
+    for (let date of Array.from(map.keys()).sort()) {
+        // single day rates info from many banks
+        const per_day = map.get(date);
+        // iterating through all banks search were performed
+        for (let bank of Object.keys(functions)) {
+            // current bank rates
+            const rates = per_day[bank];
+            // prepare row for spreadsheet
+            const row = [rates._time];
+            // pushing it to history
+            result[bank].push(row);
+
+            if (rates.error) {
+                row.push(rates.error);
+                continue;
+            }
+
+            for (let [code, names] of Object.entries(currencyNames)) {
+                if (code === rates._base) {
+                    row.push('-'); // self conversion
+                } else {
+                    row.push(rates[code] || 'unknonwn');
+                }
+            }
+        }
+    }
+
+    return result;
 }
 
 // endregion
@@ -254,10 +423,9 @@ function* find_table(html, table_index = 0) {
  * @throws {Error} parsing\HTTP errors
  */
 async function getCurrenciesFromNBS(date = new Date()) {
-    const url = new URL("https://webappcenter.nbs.rs/WebApp/ExchangeRate/ExchangeRate");
-    url.searchParams.set("Date", `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`);
-    url.searchParams.set("ExchangeRateListTypeID", `1`);
-
+    const url = "https://webappcenter.nbs.rs/WebApp/ExchangeRate/ExchangeRate"
+        + `?Date=${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`
+        + `&ExchangeRateListTypeID=1`
     log('Retrieving NBS exchange rates from:', url.toString());
 
     const dateRegex = /([0-9]{1,2})\.([0-9]{1,2}).([0-9]{4})/;
@@ -287,8 +455,7 @@ async function getCurrenciesFromNBS(date = new Date()) {
             result._time = time;
     }
 
-    log(`${Object.keys(result).length} currencies founded`);
-
+    result._base = 'RSD';
     return result;
 }
 
@@ -303,8 +470,8 @@ async function getCurrenciesFromNBS(date = new Date()) {
  * @returns {Promise<Object<keyof currencyNames, number>>}
  */
 async function getCurrenciesFromUAE(date = new Date()) {
-    const url = new URL('https://www.centralbank.ae/umbraco/Surface/Exchange/GetExchangeRateAllCurrencyDate');
-    url.searchParams.set('dateTime', date.toDateString());
+    const url = 'https://www.centralbank.ae/umbraco/Surface/Exchange/GetExchangeRateAllCurrencyDate'
+        + `?dateTime=${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
 
     log('Retrieving UAE rates from: ' + url.toString());
     const resp = await fetch(url);
@@ -330,10 +497,9 @@ async function getCurrenciesFromUAE(date = new Date()) {
         result._time = parseArabicDate(dateStr.replace(dateReplaceStr, '').trim());
     }
 
+    result._base = 'AED';
     return result;
 }
 
-getCurrenciesFromNBS().then(x => log('serbia', x));
-getCurrenciesFromUAE().then(x => log('uae', x));
 
 // endregion
