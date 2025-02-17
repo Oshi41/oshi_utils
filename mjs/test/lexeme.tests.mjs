@@ -1,6 +1,6 @@
 import {describe, it, beforeEach, before, afterEach, after} from 'node:test';
 import assert from 'assert';
-import {Lexeme, getLexemeType} from '../lexeme.mjs';
+import {Lexeme, getLexemeType} from '../bind/lexeme.mjs';
 
 const testCases = [
     {

@@ -86,7 +86,100 @@ class ReactiveState {
         this.#debounce = debounce;
         this.state = this.#create_proxy(src, new PropertyPath(''));
         this.#send_notify_batch();
+        this.#install_binder();
     }
+
+    // region html
+
+    /**
+     *
+     * @param str {string}
+     */
+    #parse_attribute(str) {
+        const res = {
+            prop: str.substring(1),
+            delay: -1,
+        };
+
+        if (res.prop.includes('.')) {
+            const [actual_prop, ...modifiers] = res.prop.split('.').filter(x => x?.length);
+            res.prop = actual_prop;
+            for (let modifier of modifiers) {
+                const [k, val] = modifier.replaceAll(']', '')
+                    .split('[');
+
+                if (k?.length && val?.length)
+                    res[val] = k;
+            }
+        }
+
+        return res;
+    }
+
+    /**
+     *
+     * @param element {HTMLElement}
+     * @param attribute {Attr}
+     */
+    #setup_binding(element, attribute){
+        if (typeof window == 'undefined') return false;
+
+        const self = this;
+        const {prop: original_name, delay} = this.#parse_attribute(attribute.name);
+        const property_path = new PropertyPath(attribute.value);
+
+        const model2view = () => {
+            if (element[original_name] !== property_path.resolve(self.state)) return;
+
+            element[original_name] = property_path.resolve(self.state);
+            console.debug('model -> view update', element[original_name]);
+        };
+        const view2model = () => {
+            if (element[original_name] !== property_path.resolve(self.state)) return;
+
+            property_path.set(self.state, element[original_name]);
+            console.debug('view -> model update', element[original_name]);
+        };
+
+        this.observe('notify', property_path, model2view);
+        element.addEventListener('change', view2model);
+        element.addEventListener('input', view2model);
+
+        model2view(property_path);
+    }
+
+    /**
+     *
+     * @param element {HTMLElement}
+     * @param recursive {boolean}
+     */
+    #bind_element(element, recursive = false) {
+        if (typeof window == 'undefined') return false;
+
+        for (let attr of Array.from(element.attributes).filter(x => x.name.startsWith('@'))) {
+            this.#setup_binding(element, attr);
+        }
+
+        if (recursive) {
+            const res = document.evaluate('//*[@*]', element,
+                null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
+            const nodes = [];
+            for (let elem = res.iterateNext(); elem != null; elem = res.iterateNext()) {
+                nodes.push(elem);
+            }
+            for (let node of nodes) {
+                this.#bind_element(node, false);
+            }
+        }
+    }
+
+    #install_binder() {
+        if (typeof window == 'undefined') return false;
+
+        this.#bind_element(document.body, true);
+    }
+
+    // endregion
 
     // region event helping
 
@@ -349,6 +442,29 @@ class ReactiveState {
         return false;
     }
 
+    /**
+     * Unsubscribe from event
+     *
+     * @param type {'change' | 'notify' | 'call'} which event will listen
+     * @param id {PathParsable | PathParsable[]} path to property
+     * @param callback {Function} - callback
+     * @returns {boolean} true if was subscribed
+     */
+    unobserve(type, id, callback){
+        if (!(id instanceof PropertyPath))
+            id = new PropertyPath(id);
+
+        const source = this.#subscription[type];
+        if (source instanceof Map) {
+            return source.get(id)?.delete?.(callback);
+        }
+        if (source instanceof EventTarget) {
+            const str_id = id.toString();
+            source.removeEventListener(str_id, callback);
+            return source._keys?.delete?.(id)
+        }
+    }
+
     // endregion
 
     // region Proxy
@@ -421,9 +537,11 @@ class ReactiveState {
 /**
  * Creates reactive state
  *
- * @param src {Object} state initial source
+ * @template T
+ * @param src {T} state initial source
  * @param debounce {number} batch delivery of notify to prevent over flooding
  * @returns {ReactiveState}
+ * @property {T} state
  */
 export function r(src, {debounce = 0} = {}) {
     return new ReactiveState(src, {debounce});

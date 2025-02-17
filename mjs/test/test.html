@@ -1,11 +1,23 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns:@data-prop xmlns:@data-attr>
 <head>
     <meta charset="UTF-8">
     <title>Title</title>
-    <script src="../reactive.mjs" type="module"></script>
+    <script src="../reactive.mjs" type="module" defer></script>
+    <script type="module">
+        import {r} from '../reactive.mjs';
+
+        const {state, observe} = r({
+            checked: true,
+            text: '123',
+        });
+    </script>
 </head>
 <body>
 
+<div style="display: grid">
+    <input type="checkbox" @data-prop:checked='path: isSelected, delay: 300'/>
+    <input type="text" @value="text"/>
+</div>
 </body>
 </html>
