@@ -1,6 +1,7 @@
 import {describe, it, beforeEach, before, afterEach, after} from 'node:test';
 import assert from 'assert';
-import {PathSegment as seg, PropertyPath as prop} from '../property_path.mjs';
+import {PropertyPath as prop} from '../bind/property.mjs';
+import {PathSegment as seg} from "../bind/segment.mjs";
 
 describe('property_path', () => {
     it('should parse a string path into dotted notation', () => {

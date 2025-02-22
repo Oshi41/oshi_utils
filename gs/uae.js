@@ -17,6 +17,29 @@ async function getCurrenciesFromUAE(date = new Date()) {
             return prev;
         }, {});
 
+    const arabic = query(html, 'p').find(x => x.startsWith('Last updated:'))
+        .replace('Last updated:', '');
+    const parts = arabic.split(' ');
+    const day = parts[1];
+    const month = parts[2]
+        .replaceAll("فبراير", "February")
+        .replaceAll("مارس", "March")
+        .replaceAll("أبريل", "April")
+        .replaceAll("مايو", "May")
+        .replaceAll("يونيو", "June")
+        .replaceAll("يوليو", "July")
+        .replaceAll("أغسطس", "August")
+        .replaceAll("سبتمبر", "September")
+        .replaceAll("أكتوبر", "October")
+        .replaceAll("نوفمبر", "November")
+        .replaceAll("ديسمبر", "December");
+    const year = parts[3];
+    let time = parts[4];
+    let period = parts[5]
+        .replaceAll('ص', 'AM')
+        .replaceAll('م', 'PM')
+
+    result._time = new Date(`${month} ${day}, ${year} ${time}`)
 
     return result;
 }

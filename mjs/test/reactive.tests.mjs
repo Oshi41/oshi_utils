@@ -1,7 +1,7 @@
 import assert from 'assert';
 import {describe, it, beforeEach, before, afterEach, after} from 'node:test';
-import {r} from '../reactive.mjs';
-import {PropertyPath} from '../property_path.mjs';
+import {r} from '../bind/reactive.mjs';
+import {PropertyPath} from '../bind/property.mjs';
 
 const prop = (...args) => new PropertyPath(...args);
 

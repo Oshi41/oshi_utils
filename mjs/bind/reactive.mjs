@@ -1,4 +1,4 @@
-import {PropertyPath} from './property_path.mjs';
+import {PropertyPath} from './property.mjs';
 
 // region Private methods
 

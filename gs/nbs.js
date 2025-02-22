@@ -16,7 +16,15 @@ async function getCurrenciesFromNBS(date = new Date()) {
 
     const html = await resp.text();
 
-    const rows = query('table tbody tr').map(tr => analyzeRow(query(tr, 'td')));
+    const rows = query('table tbody tr')
+        .map(tr => analyzeRow(query(tr, 'td')))
+        .reduce((prev, current) => {
+            prev[current.items.at(0)] = current.items.at(-1);
+            return prev;
+        }, {});
+
+    return rows;
+
 
     const result = {};
 

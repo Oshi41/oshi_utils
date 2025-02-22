@@ -105,7 +105,28 @@ const Currencies = (() => {
             }
 
             return nameMap.get(str);
-        }
+        },
+        /**
+         * Align currencies with currencies order
+         *
+         * @param rates {Object<keyof currencies, number>}
+         * @param exclude {string} currencies to exclude
+         * @return {[]}
+         */
+        align: function (rates, ...exclude) {
+            const result = [rates._time || new Date()];
+
+            for (let key of keys) {
+                if (exclude.includes(key))
+                    result.push('')
+                else {
+                    result.push(rates[key]);
+                }
+            }
+
+            return result;
+        },
+        headers: ['Date', ...keys],
     }
 })();
 
@@ -398,7 +419,6 @@ function query(html, selector) {
 
 }
 
-
 function analyzeRow(arr) {
     const meta = {
         codes: [],
@@ -431,3 +451,94 @@ function analyzeRow(arr) {
 }
 
 // endregion
+
+// region  Loading helper
+
+/**
+ *
+ * @param from {Date}
+ * @param to {Date}
+ * @param load {(d: Date)=>Promise<any>}
+ * @returns {Promise<[][]>}
+ */
+async function loadRange(from, to, load) {
+    if (to > new Date())
+        to = new Date();
+
+    from.setHours(6, 0, 0);
+    to.setHours(6, 0, 0);
+
+    const results = [];
+    const promises = [];
+
+    for (let i = from; i <= to; i = i.add({day: 1})) {
+        promises.push(load(i).then(x => results.push(Currencies.align(x))));
+    }
+
+    await Promise.all(promises);
+
+    results.sort((a, b) => a[0] - b[0]);
+
+    return results;
+}
+
+// endregion
+
+async function getCurrenciesFromUAE(date = new Date()) {
+    const url = new URL('https://www.centralbank.ae/umbraco/Surface/Exchange/GetExchangeRateAllCurrencyDate');
+    url.searchParams.set('dateTime', date.format('dd/MM/yyyy'));
+
+    const resp = await fetch(url.toString());
+    if (!resp.ok) {
+        return {_time: date, error: new Error(resp.statusText)};
+    }
+
+    const html = await resp.text();
+
+    const result = query(html, 'table tbody tr')
+        .map(tr => analyzeRow(query(tr, 'td')))
+        .filter(x => x.meta.rates.length === 1 && x.meta.codes.length === 1)
+        .reduce((prev, cur) => {
+            prev[cur.meta.codes.at(0)] = cur.meta.rates.at(0);
+            return prev;
+        }, {});
+
+    const arabic = query(html, 'p').find(x => x.startsWith('Last updated:'))
+        .replace('Last updated:', '');
+    const parts = arabic.split(' ');
+    const day = parts[1];
+    const month = parts[2]
+        .replaceAll("فبراير", "February")
+        .replaceAll("مارس", "March")
+        .replaceAll("أبريل", "April")
+        .replaceAll("مايو", "May")
+        .replaceAll("يونيو", "June")
+        .replaceAll("يوليو", "July")
+        .replaceAll("أغسطس", "August")
+        .replaceAll("سبتمبر", "September")
+        .replaceAll("أكتوبر", "October")
+        .replaceAll("نوفمبر", "November")
+        .replaceAll("ديسمبر", "December");
+    const year = parts[3];
+    let time = parts[4];
+    let period = parts[5]
+        .replaceAll('ص', 'AM')
+        .replaceAll('م', 'PM')
+
+    result._time = new Date(`${month} ${day}, ${year} ${time}`)
+
+    return result;
+}
+
+async function fillSheet() {
+    const from = new Date('01 Feb 2025');
+    const to = new Date('15 Feb 2025');
+
+    const rows = await loadRange(from, to, getCurrenciesFromUAE);
+
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('UAE');
+    for (let row of rows) {
+        sheet.appendRow(row);
+    }
+}
+getCurrenciesFromUAE(new Date('12 Feb 2024'));
